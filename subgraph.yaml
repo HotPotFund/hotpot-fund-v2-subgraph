@@ -6,9 +6,9 @@ dataSources:
     name: Controller
     network: ropsten
     source:
-      address: "0x96c1b951332f4Fc785B8d1f583cA451E68B0F8BA"
+      address: "0x81f8BA6eb8391C40363b319EC0C9d367b06cAd84"
       abi: Controller
-      startBlock: 10301827
+      startBlock: 10358144
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -56,9 +56,9 @@ dataSources:
     name: Factory
     network: ropsten
     source:
-      address: "0x5373E2368fe58a00A37ef05338bbaee53E27511C"
+      address: "0xf96B4aAdE3f258c19651f8A0FB64ba9731e89e00"
       abi: Factory
-      startBlock: 10301865
+      startBlock: 10358144
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4

@@ -28,13 +28,14 @@ import {
     Transaction
 } from "../../generated/schema";
 import {
-    BI_18,
+    BI_18, calFeesOfPosition, CalFeesParams,
     convertTokenToDecimal,
     exponentToBigDecimal,
     fetchTokenDecimals,
     fetchTokenName,
     fetchTokenSymbol,
-    fetchTokenTotalSupply, FixedPoint_Q128_BD, FixedPoint_Q128_BI,
+    fetchTokenTotalSupply,
+    FixedPoint_Q128_BD,
     getTokenPriceUSD,
     ONE_BI,
     uniV3Factory,
@@ -45,98 +46,6 @@ import {Address, ByteArray} from "@graphprotocol/graph-ts/index";
 import {Fund as FundContract} from "../../generated/templates/Fund/Fund";
 import {updateFundDayData} from "./dayUpdates";
 
-
-class FeeGrowthInsideParams {
-    pool: UniV3Pool;
-    tickLower: i32;
-    tickUpper: i32;
-    tickCurrent: i32;
-    feeGrowthGlobal0X128: BigInt;
-    feeGrowthGlobal1X128: BigInt;
-}
-
-class FeeGrowthInsides {
-    feeGrowthInside0X128: BigInt;
-    feeGrowthInside1X128: BigInt;
-}
-
-function getFeeGrowthInside(params: FeeGrowthInsideParams): FeeGrowthInsides {
-    let feeGrowthInside0X128: BigInt;
-    let feeGrowthInside1X128: BigInt;
-
-    // calculate fee growth below
-    let results = params.pool.ticks(params.tickLower);
-    let lowerFeeGrowthOutside0X128 = results.value2;
-    let lowerFeeGrowthOutside1X128 = results.value3;
-
-    let feeGrowthBelow0X128: BigInt;
-    let feeGrowthBelow1X128: BigInt;
-    if (params.tickCurrent >= params.tickLower) {
-        feeGrowthBelow0X128 = lowerFeeGrowthOutside0X128;
-        feeGrowthBelow1X128 = lowerFeeGrowthOutside1X128;
-    } else {
-        feeGrowthBelow0X128 = params.feeGrowthGlobal0X128.minus(lowerFeeGrowthOutside0X128);
-        feeGrowthBelow1X128 = params.feeGrowthGlobal1X128.minus(lowerFeeGrowthOutside1X128);
-    }
-
-    // calculate fee growth above
-    results = params.pool.ticks(params.tickUpper);
-    let upperFeeGrowthOutside0X128 = results.value2;
-    let upperFeeGrowthOutside1X128 = results.value3;
-
-    let feeGrowthAbove0X128: BigInt;
-    let feeGrowthAbove1X128: BigInt;
-    if (params.tickCurrent < params.tickUpper) {
-        feeGrowthAbove0X128 = upperFeeGrowthOutside0X128;
-        feeGrowthAbove1X128 = upperFeeGrowthOutside1X128;
-    } else {
-        feeGrowthAbove0X128 = params.feeGrowthGlobal0X128.minus(upperFeeGrowthOutside0X128);
-        feeGrowthAbove1X128 = params.feeGrowthGlobal1X128.minus(upperFeeGrowthOutside1X128);
-    }
-
-    feeGrowthInside0X128 = params.feeGrowthGlobal0X128.minus(feeGrowthBelow0X128).minus(feeGrowthAbove0X128);
-    feeGrowthInside1X128 = params.feeGrowthGlobal1X128.minus(feeGrowthBelow1X128).minus(feeGrowthAbove1X128);
-
-    return {feeGrowthInside0X128, feeGrowthInside1X128} as FeeGrowthInsides;
-}
-
-class CalFeesParams {
-    tickCurrent: i32;
-    feeGrowthGlobal0X128: BigInt;
-    feeGrowthGlobal1X128: BigInt;
-    fundTokenPriceUSD: BigDecimal;
-    token0PriceUSD: BigDecimal;
-    token1PriceUSD: BigDecimal;
-    decimals0: BigInt;
-    decimals1: BigInt;
-}
-class FeesOfPosition{
-    fees: BigDecimal;
-    feeGrowthInside0X128: BigInt;
-    feeGrowthInside1X128: BigInt;
-}
-
-function calFeesOfPosition(params: CalFeesParams, position: Position, uniPool: UniV3Pool): FeesOfPosition {
-    // get global feeGrowthInside
-    let feeGrowthInside = getFeeGrowthInside({
-        pool: uniPool,
-        tickLower: position.tickLower.toI32(),
-        tickUpper: position.tickUpper.toI32(),
-        tickCurrent: params.tickCurrent,
-        feeGrowthGlobal0X128: params.feeGrowthGlobal0X128,
-        feeGrowthGlobal1X128: params.feeGrowthGlobal1X128
-    });
-    let feeGrowthInside0X128 = feeGrowthInside.feeGrowthInside0X128;
-    let feeGrowthInside1X128 = feeGrowthInside.feeGrowthInside1X128;
-
-    // calculate accumulated fees
-    let amount0 = convertTokenToDecimal((feeGrowthInside0X128.minus(position.feeGrowthInside0LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals0);
-    let amount1 = convertTokenToDecimal((feeGrowthInside1X128.minus(position.feeGrowthInside1LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals1);
-
-    let feesUSD = amount0.times(params.token0PriceUSD).plus(amount1.times(params.token1PriceUSD));
-    let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
-    return {fees, feeGrowthInside0X128, feeGrowthInside1X128}
-}
 
 export function updateFundPools(fundEntity: Fund,
                                 fundTokenEntity: Token,
@@ -327,7 +236,8 @@ function updateFees(block: ethereum.Block,
                     fundEntity: Fund,
                     fundTokenEntity: Token,
                     fund: FundContract,
-                    fundTokenPriceUSD: BigDecimal = null): void {
+                    fundTokenPriceUSD: BigDecimal = null,
+                    isSaveSummary: boolean = true): void {
     syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     let fundSummary = FundSummary.load("1") as FundSummary;
     let manager = Manager.load(fundEntity.manager) as Manager;
@@ -345,7 +255,7 @@ function updateFees(block: ethereum.Block,
     manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees);
     updateFundDayData(block, fundEntity, totalShare);
 
-    fundSummary.save();
+    if (isSaveSummary) fundSummary.save();
     manager.save();
 }
 
@@ -377,11 +287,13 @@ export function handleInit(call: InitCall): void {
     updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
 
     let poolAddress = uniV3Factory.getPool(call.inputs.token0, call.inputs.token1, call.inputs.fee);
+    let uniV3Pool = UniV3Pool.bind(poolAddress);
     let fundPoolsLength = fund.poolsLength();//实际长度
     let poolIndex = fundEntity.poolsLength.toI32();//lasted的长度
     let pool: Pool;
     //new pool
     if (fundPoolsLength.gt(fundEntity.poolsLength)) {
+        fundEntity.poolsLength = fundPoolsLength;
         pool = new Pool(call.inputs.fund.toHex() + '-' + poolIndex.toString());
         pool.fund = initTx.fund;
         pool.address = poolAddress;
@@ -398,14 +310,12 @@ export function handleInit(call: InitCall): void {
             if (pool != null || poolIndex == 0) break;
         }
     }
-    fundEntity.poolsLength = fundPoolsLength;
+    let positionIndex = pool.positionsLength;
     pool.positionsLength = pool.positionsLength.plus(ONE_BI);
     pool.assetAmount = convertTokenToDecimal(fund.assetsOfPool(BigInt.fromI32(poolIndex)), fundTokenEntity.decimals);
     pool.assetShare = fundEntity.totalAssets.gt(ZERO_BD) ? pool.assetAmount.div(fundEntity.totalAssets) : ZERO_BD;
     pool.assetAmountUSD = fundTokenPriceUSD.times(pool.assetAmount);
 
-    let uniV3Pool = UniV3Pool.bind(poolAddress);
-    let positionIndex = pool.positionsLength.minus(ONE_BI);
     let position = new Position(call.inputs.fund.toHex() + '-' + poolIndex.toString() + '-' + positionIndex.toString());
     initTx.position = position.id;
     position.pool = pool.id;
@@ -420,15 +330,14 @@ export function handleInit(call: InitCall): void {
         + initTx.tickUpper.toHex().substr(2).padStart(6, "0");
     position.positionKey = Bytes.fromHexString(crypto.keccak256(ByteArray.fromHexString(keyEncoded)).toHex()) as Bytes;
     position.liquidity = uniV3Pool.positions(position.positionKey).value0;
-    // position.liquidity = ZERO_BI;
     position.assetAmount = convertTokenToDecimal(fund.assetsOfPosition(BigInt.fromI32(poolIndex), positionIndex), fundTokenEntity.decimals);
     position.assetAmountUSD = fundTokenPriceUSD.times(pool.assetAmount);
     position.assetShare = fundEntity.totalAssets.gt(ZERO_BD) ? position.assetAmount.div(fundEntity.totalAssets) : ZERO_BD;
 
-    initTx.save();
-    transaction.save();
     pool.save();
     position.save();
+    initTx.save();
+    transaction.save();
     fundEntity.save();
 }
 
@@ -436,6 +345,7 @@ export function handleAdd(call: AddCall): void {
     let fundEntity = Fund.load(call.inputs.fund.toHexString()) as Fund;
     let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
     let fund = FundContract.bind(call.inputs.fund);
+    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);
@@ -450,11 +360,11 @@ export function handleAdd(call: AddCall): void {
     addTx.poolIndex = call.inputs.poolIndex;
     addTx.positionIndex = call.inputs.positionIndex;
     addTx.amount = convertTokenToDecimal(call.inputs.amount, fundTokenEntity.decimals);
-    addTx.amountUSD = addTx.amount.times(getTokenPriceUSD(fundTokenEntity));
+    addTx.amountUSD = addTx.amount.times(fundTokenPriceUSD);
     addTx.collect = call.inputs.collect;
     addTx.position = call.inputs.fund.toHex() + "-" + addTx.poolIndex.toString() + "-" + addTx.positionIndex.toString();
 
-    updateFees(call.block, fundEntity, fundTokenEntity, fund);
+    updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
 
     addTx.save();
     transaction.save();
@@ -492,6 +402,7 @@ export function handleMove(call: MoveCall): void {
     let fundEntity = Fund.load(call.inputs.fund.toHexString()) as Fund;
     let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
     let fund = FundContract.bind(call.inputs.fund);
+    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);
@@ -511,9 +422,9 @@ export function handleMove(call: MoveCall): void {
     movesTx.addPosition = call.inputs.fund.toHex() + "-" + movesTx.poolIndex.toString() + "-" + movesTx.addIndex.toString();
     movesTx.amount = (Position.load(movesTx.subPosition) as Position)
         .assetAmount.minus(convertTokenToDecimal(fund.assetsOfPosition(movesTx.poolIndex, movesTx.subIndex), fundTokenEntity.decimals));
-    movesTx.amountUSD = getTokenPriceUSD(fundTokenEntity).times(movesTx.amount);
+    movesTx.amountUSD = fundTokenPriceUSD.times(movesTx.amount);
 
-    updateFees(call.block, fundEntity, fundTokenEntity, fund);
+    updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
 
     movesTx.save();
     transaction.save();
@@ -524,9 +435,9 @@ export function handleBlock(block: ethereum.Block): void {
     //modDay在整点的-+24秒内，就认为是整点，相反就不是整点时刻
     //如果不是整点: modDay in (24 - 86376)
     let modDay = block.timestamp.mod(BigInt.fromI32(86400));
-    if(modDay.gt(BigInt.fromI32(24)) && modDay.lt(BigInt.fromI32(86376))){
+    if (modDay.gt(BigInt.fromI32(24)) && modDay.lt(BigInt.fromI32(86376))) {
         //old data 60*60s处理一次  12h=2880block
-        if (block.number.lt(BigInt.fromI32(10336624)) && block.number.mod(BigInt.fromI32(60 * 4))
+        if (block.number.lt(BigInt.fromI32(10357470)) && block.number.mod(BigInt.fromI32(60 * 4))
             .notEqual(ZERO_BI)) return;
 
         //For performance, every 4*4 blocks are processed for about 4*60s
@@ -542,23 +453,8 @@ export function handleBlock(block: ethereum.Block): void {
         let fundEntity = Fund.load(funds[i]) as Fund;
         let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
         let fund = FundContract.bind(Address.fromString(funds[i]));
-        let manager = Manager.load(fundEntity.manager) as Manager;
-
-        syncFundStatusData(fundEntity, fundTokenEntity, fund);
-        let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund);
-        let totalShare = convertTokenToDecimal(fundEntity.totalSupply, fundEntity.decimals);
-        let sharePrice = totalShare.gt(ZERO_BD) ? deltaFees.div(totalShare) : ZERO_BD;
-        fundEntity.lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(sharePrice);
-        fundEntity.totalFees = fundEntity.totalFees.plus(deltaFees);
-        fundEntity.totalPendingFees = fundEntity.totalPendingFees.plus(deltaFees);
-        fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
-        fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees);
-        manager.totalFees = manager.totalFees.plus(deltaFees);
-        manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees);
-        updateFundDayData(block, fundEntity, totalShare);
-
+        updateFees(block, fundEntity, fundTokenEntity, fund, null, false);
         totalAssetsUSD = totalAssetsUSD.plus(fundEntity.totalAssetsUSD);
-        manager.save();
         fundEntity.save();
     }
     fundSummary.totalAssetsUSD = totalAssetsUSD;

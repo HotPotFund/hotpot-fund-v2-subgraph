@@ -1,6 +1,6 @@
 /* eslint-disable prefer-const */
 import {Address, BigDecimal, BigInt} from '@graphprotocol/graph-ts'
-import {Token} from "../generated/schema";
+import {Position, Token} from "../generated/schema";
 
 import {UniV3Factory} from "../generated/Controller/UniV3Factory";
 import {UniV3Pool} from "../generated/Controller/UniV3Pool";
@@ -194,4 +194,96 @@ export function fetchTokenDecimals(tokenAddress: Address): BigInt {
     }
 
     return BigInt.fromI32(decimalValue as i32)
+}
+
+class FeeGrowthInsideParams {
+    pool: UniV3Pool;
+    tickLower: i32;
+    tickUpper: i32;
+    tickCurrent: i32;
+    feeGrowthGlobal0X128: BigInt;
+    feeGrowthGlobal1X128: BigInt;
+}
+
+class FeeGrowthInsides {
+    feeGrowthInside0X128: BigInt;
+    feeGrowthInside1X128: BigInt;
+}
+
+export function getFeeGrowthInside(params: FeeGrowthInsideParams): FeeGrowthInsides {
+    let feeGrowthInside0X128: BigInt;
+    let feeGrowthInside1X128: BigInt;
+
+    // calculate fee growth below
+    let results = params.pool.ticks(params.tickLower);
+    let lowerFeeGrowthOutside0X128 = results.value2;
+    let lowerFeeGrowthOutside1X128 = results.value3;
+
+    let feeGrowthBelow0X128: BigInt;
+    let feeGrowthBelow1X128: BigInt;
+    if (params.tickCurrent >= params.tickLower) {
+        feeGrowthBelow0X128 = lowerFeeGrowthOutside0X128;
+        feeGrowthBelow1X128 = lowerFeeGrowthOutside1X128;
+    } else {
+        feeGrowthBelow0X128 = params.feeGrowthGlobal0X128.minus(lowerFeeGrowthOutside0X128);
+        feeGrowthBelow1X128 = params.feeGrowthGlobal1X128.minus(lowerFeeGrowthOutside1X128);
+    }
+
+    // calculate fee growth above
+    results = params.pool.ticks(params.tickUpper);
+    let upperFeeGrowthOutside0X128 = results.value2;
+    let upperFeeGrowthOutside1X128 = results.value3;
+
+    let feeGrowthAbove0X128: BigInt;
+    let feeGrowthAbove1X128: BigInt;
+    if (params.tickCurrent < params.tickUpper) {
+        feeGrowthAbove0X128 = upperFeeGrowthOutside0X128;
+        feeGrowthAbove1X128 = upperFeeGrowthOutside1X128;
+    } else {
+        feeGrowthAbove0X128 = params.feeGrowthGlobal0X128.minus(upperFeeGrowthOutside0X128);
+        feeGrowthAbove1X128 = params.feeGrowthGlobal1X128.minus(upperFeeGrowthOutside1X128);
+    }
+
+    feeGrowthInside0X128 = params.feeGrowthGlobal0X128.minus(feeGrowthBelow0X128).minus(feeGrowthAbove0X128);
+    feeGrowthInside1X128 = params.feeGrowthGlobal1X128.minus(feeGrowthBelow1X128).minus(feeGrowthAbove1X128);
+
+    return {feeGrowthInside0X128, feeGrowthInside1X128} as FeeGrowthInsides;
+}
+
+export class CalFeesParams {
+    tickCurrent: i32;
+    feeGrowthGlobal0X128: BigInt;
+    feeGrowthGlobal1X128: BigInt;
+    fundTokenPriceUSD: BigDecimal;
+    token0PriceUSD: BigDecimal;
+    token1PriceUSD: BigDecimal;
+    decimals0: BigInt;
+    decimals1: BigInt;
+}
+export class FeesOfPosition{
+    fees: BigDecimal;
+    feeGrowthInside0X128: BigInt;
+    feeGrowthInside1X128: BigInt;
+}
+
+export function calFeesOfPosition(params: CalFeesParams, position: Position, uniPool: UniV3Pool): FeesOfPosition {
+    // get global feeGrowthInside
+    let feeGrowthInside = getFeeGrowthInside({
+        pool: uniPool,
+        tickLower: position.tickLower.toI32(),
+        tickUpper: position.tickUpper.toI32(),
+        tickCurrent: params.tickCurrent,
+        feeGrowthGlobal0X128: params.feeGrowthGlobal0X128,
+        feeGrowthGlobal1X128: params.feeGrowthGlobal1X128
+    });
+    let feeGrowthInside0X128 = feeGrowthInside.feeGrowthInside0X128;
+    let feeGrowthInside1X128 = feeGrowthInside.feeGrowthInside1X128;
+
+    // calculate accumulated fees
+    let amount0 = convertTokenToDecimal((feeGrowthInside0X128.minus(position.feeGrowthInside0LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals0);
+    let amount1 = convertTokenToDecimal((feeGrowthInside1X128.minus(position.feeGrowthInside1LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals1);
+
+    let feesUSD = amount0.times(params.token0PriceUSD).plus(amount1.times(params.token1PriceUSD));
+    let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
+    return {fees, feeGrowthInside0X128, feeGrowthInside1X128}
 }
