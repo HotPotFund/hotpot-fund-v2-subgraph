@@ -294,6 +294,9 @@ type SubTx @entity {
     positionIndex: BigInt!
     proportion: BigDecimal!
 
+    amount: BigDecimal!
+    amountUSD: BigDecimal!
+
     position: Position!
 }
 

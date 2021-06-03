@@ -375,6 +375,7 @@ export function handleSub(call: SubCall): void {
     let fundEntity = Fund.load(call.inputs.fund.toHexString()) as Fund;
     let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
     let fund = FundContract.bind(call.inputs.fund);
+    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);
@@ -390,8 +391,11 @@ export function handleSub(call: SubCall): void {
     subTx.positionIndex = call.inputs.positionIndex;
     subTx.proportion = call.inputs.proportionX128.toBigDecimal().div(FixedPoint_Q128_BD);
     subTx.position = call.inputs.fund.toHex() + "-" + subTx.poolIndex.toString() + "-" + subTx.positionIndex.toString();
-
-    updateFees(call.block, fundEntity, fundTokenEntity, fund);
+    subTx.amount = (Position.load(subTx.position) as Position)
+        .assetAmount.minus(convertTokenToDecimal(fund.assetsOfPosition(subTx.poolIndex, subTx.positionIndex), fundTokenEntity.decimals));
+    if(subTx.amount.lt(ZERO_BD)) subTx.amount = ZERO_BD.minus(subTx.amount);
+    subTx.amountUSD = fundTokenPriceUSD.times(subTx.amount);
+    updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
 
     subTx.save();
     transaction.save();
@@ -422,6 +426,7 @@ export function handleMove(call: MoveCall): void {
     movesTx.addPosition = call.inputs.fund.toHex() + "-" + movesTx.poolIndex.toString() + "-" + movesTx.addIndex.toString();
     movesTx.amount = (Position.load(movesTx.subPosition) as Position)
         .assetAmount.minus(convertTokenToDecimal(fund.assetsOfPosition(movesTx.poolIndex, movesTx.subIndex), fundTokenEntity.decimals));
+    if(movesTx.amount.lt(ZERO_BD)) movesTx.amount = ZERO_BD.minus(movesTx.amount);
     movesTx.amountUSD = fundTokenPriceUSD.times(movesTx.amount);
 
     updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
