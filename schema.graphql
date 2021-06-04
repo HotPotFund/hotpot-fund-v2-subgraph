@@ -51,8 +51,7 @@ type Fund @entity {
     pools: [Pool!] @derivedFrom(field: "fund")
     poolsLength: BigInt!
 
-    buyPaths: [Path!] @derivedFrom(field: "fund")
-    sellPaths: [Path!] @derivedFrom(field: "fund")
+    paths: [Path!] @derivedFrom(field: "fund")
 
     # 总的基金份额
     totalSupply: BigInt!
