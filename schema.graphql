@@ -220,7 +220,6 @@ type Transaction @entity {
     gasPrice: BigDecimal!
     gasUsed: BigInt!
 
-    harvests: [HarvestTx!]
     deposits: [DepositTx!]
     withdraws: [WithdrawTx!]
 
@@ -229,6 +228,21 @@ type Transaction @entity {
     adds: [AddTx!]
     subs: [SubTx!]
     moves: [MoveTx!]
+
+    setHarvestPaths: [SetHarvestPathTx!]
+    harvests: [HarvestTx!]
+}
+
+type SetHarvestPathTx @entity {
+    # transaction hash + "-" + index in Transaction array
+    id: ID!
+    transaction: Transaction!
+
+    token: Token!
+    path: Bytes!
+
+    tokens: [Token!]
+    fees: [Int!]
 }
 
 type HarvestTx @entity {

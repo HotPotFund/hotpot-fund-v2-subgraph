@@ -6,6 +6,7 @@ import {
     Harvest,
     InitCall,
     MoveCall,
+    SetHarvestPathCall,
     SetPathCall,
     SubCall,
 } from "../../generated/Controller/Controller";
@@ -23,6 +24,7 @@ import {
     Path,
     Pool,
     Position,
+    SetHarvestPathTx,
     SetPathTx,
     SubTx,
     Token,
@@ -203,6 +205,55 @@ export function handleHarvest(event: Harvest): void {
     havestTx.save();
     transaction.save();
     harvestSummary.save();
+}
+
+export function handleSetHarvestPath(call: SetHarvestPathCall): void {
+    let address = call.inputs.token;
+    if (Token.load(address.toHex()) === null) {
+        let token = new Token(address.toHex());
+        token.symbol = fetchTokenSymbol(address);
+        token.name = fetchTokenName(address);
+        token.totalSupply = fetchTokenTotalSupply(address);
+        token.isVerified = false;
+        let decimals = fetchTokenDecimals(address);
+        // bail if we couldn't figure out the decimals
+        if (decimals === null) {
+            log.debug('mybug the decimal on token 0 was null', []);
+            decimals = BI_18;//默认设为18位精度
+        }
+        token.decimals = decimals;
+        token.save();
+    }
+
+    let txId = call.transaction.hash.toHex();
+    let transaction = Transaction.load(txId) || new Transaction(txId);
+    let id = txId + "-" + BigInt.fromI32(transaction.setHarvestPaths.length).toString();
+    transaction.setHarvestPaths = transaction.setHarvestPaths.concat([id]);
+    syncTxStatusData(transaction as Transaction, call);
+
+    let setPathTx = new SetHarvestPathTx(id);
+    setPathTx.transaction = txId;
+    setPathTx.token = call.inputs.token.toHex();
+    setPathTx.path = call.inputs.path;
+
+    let pathTokens = setPathTx.tokens || [];
+    let pathFees = setPathTx.fees || [];
+    let count = 0;
+    let finalToken = '';
+    let data = call.inputs.path.toHex().substr(2);
+    do {
+        pathTokens.push('0x' + data.substr(0, 40));
+        pathFees.push(parseInt('0x' + data.substr(40, 6)) as i32);
+        finalToken = '0x' + data.substr(46, 40);
+        count += 1;
+        data = data.substr(count * 46);
+    } while (data.length >= 86);
+    pathTokens.push(finalToken);
+    setPathTx.tokens = pathTokens;
+    setPathTx.fees = pathFees;
+
+    setPathTx.save();
+    transaction.save();
 }
 
 export function handleSetPath(call: SetPathCall): void {

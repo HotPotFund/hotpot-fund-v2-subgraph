@@ -49,6 +49,8 @@ dataSources:
           handler: handleSub
         - function: move(address,uint256,uint256,uint256,uint256)
           handler: handleMove
+        - function: setHarvestPath(address,bytes)
+          handler: handleSetHarvestPath
       blockHandlers:
         - handler: handleBlock
       file: ./src/mappings/controller.ts
