@@ -17,7 +17,8 @@ import {
     FundSummary,
     HarvestSummary,
     HarvestTx,
-    InitTx, Manager,
+    InitTx,
+    Manager,
     MoveTx,
     Path,
     Pool,
@@ -28,7 +29,9 @@ import {
     Transaction
 } from "../../generated/schema";
 import {
-    BI_18, calFeesOfPosition, CalFeesParams,
+    BI_18,
+    calFeesOfPosition,
+    CalFeesParams,
     convertTokenToDecimal,
     exponentToBigDecimal,
     fetchTokenDecimals,
@@ -228,6 +231,24 @@ export function handleSetPath(call: SetPathCall): void {
     setPathTx.save();
 
     path.path = setPathTx.path;
+    let pathTokens = path.tokens || [];
+    let pathFees = path.fees || [];
+    pathTokens.splice(0, pathTokens.length);
+    pathFees.splice(0, pathFees.length);
+    let count = 0;
+    let finalToken = '';
+    let data = call.inputs.path.toHex().substr(2);
+    do {
+        pathTokens.push('0x' + data.substr(0, 40));
+        pathFees.push(parseInt('0x' + data.substr(40, 6)) as i32);
+        finalToken = '0x' + data.substr(46, 40);
+        count += 1;
+        data = data.substr(count * 46);
+    } while (data.length >= 86);
+    pathTokens.push(finalToken);
+    path.tokens = pathTokens;
+    path.fees = pathFees;
+
     transaction.save();
     path.save();
 }
@@ -393,7 +414,7 @@ export function handleSub(call: SubCall): void {
     subTx.position = call.inputs.fund.toHex() + "-" + subTx.poolIndex.toString() + "-" + subTx.positionIndex.toString();
     subTx.amount = (Position.load(subTx.position) as Position)
         .assetAmount.minus(convertTokenToDecimal(fund.assetsOfPosition(subTx.poolIndex, subTx.positionIndex), fundTokenEntity.decimals));
-    if(subTx.amount.lt(ZERO_BD)) subTx.amount = ZERO_BD.minus(subTx.amount);
+    if (subTx.amount.lt(ZERO_BD)) subTx.amount = ZERO_BD.minus(subTx.amount);
     subTx.amountUSD = fundTokenPriceUSD.times(subTx.amount);
     updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
 
@@ -426,7 +447,7 @@ export function handleMove(call: MoveCall): void {
     movesTx.addPosition = call.inputs.fund.toHex() + "-" + movesTx.poolIndex.toString() + "-" + movesTx.addIndex.toString();
     movesTx.amount = (Position.load(movesTx.subPosition) as Position)
         .assetAmount.minus(convertTokenToDecimal(fund.assetsOfPosition(movesTx.poolIndex, movesTx.subIndex), fundTokenEntity.decimals));
-    if(movesTx.amount.lt(ZERO_BD)) movesTx.amount = ZERO_BD.minus(movesTx.amount);
+    if (movesTx.amount.lt(ZERO_BD)) movesTx.amount = ZERO_BD.minus(movesTx.amount);
     movesTx.amountUSD = fundTokenPriceUSD.times(movesTx.amount);
 
     updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);

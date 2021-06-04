@@ -51,8 +51,7 @@ function getEthPriceInUSD(): BigDecimal {
     if (!result.reverted) {
         let sqrtPrice = (result.value.value0).toBigDecimal().div(FixedPoint_Q96_BD);
         return sqrtPrice.times(sqrtPrice);
-    }
-    else
+    } else
         return ZERO_BD;
 }
 
@@ -260,7 +259,8 @@ export class CalFeesParams {
     decimals0: BigInt;
     decimals1: BigInt;
 }
-export class FeesOfPosition{
+
+export class FeesOfPosition {
     fees: BigDecimal;
     feeGrowthInside0X128: BigInt;
     feeGrowthInside1X128: BigInt;

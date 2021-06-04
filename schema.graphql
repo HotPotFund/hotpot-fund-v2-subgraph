@@ -90,6 +90,9 @@ type Path @entity {
     distToken: Token!
     isBuy: Boolean!
     path: Bytes!
+
+    tokens: [Token!]
+    fees: [Int!]
 }
 
 type Manager @entity {
