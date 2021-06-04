@@ -88,7 +88,6 @@ type Path @entity {
     fund: Fund!
 
     distToken: Token!
-    isBuy: Boolean!
     path: Bytes!
 
     tokens: [Token!]
@@ -251,8 +250,7 @@ type SetPathTx @entity {
 
     fund: Fund!
     distToken: Token!
-    buy: Boolean!
-    path: Bytes!
+    path: Path!
 }
 
 type InitTx @entity {

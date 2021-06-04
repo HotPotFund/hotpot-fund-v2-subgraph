@@ -542,13 +542,13 @@
         "type": "address"
       },
       {
-        "internalType": "bool",
+        "internalType": "bytes",
         "name": "buy",
-        "type": "bool"
+        "type": "bytes"
       },
       {
         "internalType": "bytes",
-        "name": "path",
+        "name": "sell",
         "type": "bytes"
       }
     ],

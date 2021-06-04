@@ -18,6 +18,11 @@
       },
       {
         "internalType": "address",
+        "name": "_uniV3Factory",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_weth9",
         "type": "address"
       }
@@ -323,11 +328,6 @@
         "type": "address"
       },
       {
-        "internalType": "bool",
-        "name": "buy",
-        "type": "bool"
-      },
-      {
         "internalType": "bytes",
         "name": "path",
         "type": "bytes"
@@ -382,6 +382,19 @@
     "name": "sub",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "uniV3Factory",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

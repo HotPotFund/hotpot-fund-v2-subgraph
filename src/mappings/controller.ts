@@ -217,20 +217,17 @@ export function handleSetPath(call: SetPathCall): void {
     setPathTx.transaction = txId;
     setPathTx.fund = call.inputs.fund.toHex();
     setPathTx.distToken = call.inputs.distToken.toHex();
-    setPathTx.buy = call.inputs.buy;
-    setPathTx.path = call.inputs.path;
+    let pathId = call.inputs.fund.toHex() + "-" + call.inputs.distToken.toHex();
+    setPathTx.path = pathId;
 
-    let pathId = call.inputs.fund.toHex() + "-" + call.inputs.distToken.toHex() + "-" + (call.inputs.buy ? "1" : "0");
     let path = Path.load(pathId);
     if (path === null) {
         path = new Path(pathId);
         path.fund = setPathTx.fund;
         path.distToken = setPathTx.distToken;
-        path.isBuy = setPathTx.buy;
     }
-    setPathTx.save();
 
-    path.path = setPathTx.path;
+    path.path = call.inputs.path;
     let pathTokens = path.tokens || [];
     let pathFees = path.fees || [];
     pathTokens.splice(0, pathTokens.length);
@@ -249,8 +246,9 @@ export function handleSetPath(call: SetPathCall): void {
     path.tokens = pathTokens;
     path.fees = pathFees;
 
-    transaction.save();
     path.save();
+    setPathTx.save();
+    transaction.save();
 }
 
 function updateFees(block: ethereum.Block,
