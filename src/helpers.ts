@@ -51,9 +51,9 @@ function getEthPriceInUSD(): BigDecimal {
     let result = usdcPool.try_slot0();
     if (!result.reverted) {
         let sqrtPrice = (result.value.value0).toBigDecimal().div(FixedPoint_Q96_BD);
-        let price0 = sqrtPrice.times(sqrtPrice)
-            .times(exponentToBigDecimal(BI_6))
-            .div(exponentToBigDecimal(BI_18));
+        let price0 = sqrtPrice.times(sqrtPrice)//最小单位的token1/token0比值 1wei token0对应多少wei token1
+            .times(exponentToBigDecimal(BI_6))//先扩大到 1Unit token0 对应多少wei token1
+            .div(exponentToBigDecimal(BI_18));//再转换成 1Unit token0 对应多少Unit token1
         return ONE_BD.div(price0);
     } else
         return ZERO_BD;
