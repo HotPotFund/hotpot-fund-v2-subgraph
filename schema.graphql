@@ -89,8 +89,16 @@ type Path @entity {
     distToken: Token!
     path: Bytes!
 
-    tokens: [Token!]
-    fees: [Int!]
+    pathPools:[PathPool!]
+}
+
+type PathPool @entity {
+    # fund/controller address + token address + index
+    id: ID!
+
+    tokenIn: Token!
+    tokenOut: Token!
+    fee: Int!
 }
 
 type Manager @entity {
@@ -238,11 +246,10 @@ type SetHarvestPathTx @entity {
     id: ID!
     transaction: Transaction!
 
-    token: Token!
+    distToken: Token!
     path: Bytes!
 
-    tokens: [Token!]
-    fees: [Int!]
+    pathPools: [PathPool!]
 }
 
 type HarvestTx @entity {

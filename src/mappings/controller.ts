@@ -22,6 +22,7 @@ import {
     Manager,
     MoveTx,
     Path,
+    PathPool,
     Pool,
     Position,
     SetHarvestPathTx,
@@ -233,24 +234,25 @@ export function handleSetHarvestPath(call: SetHarvestPathCall): void {
 
     let setPathTx = new SetHarvestPathTx(id);
     setPathTx.transaction = txId;
-    setPathTx.token = call.inputs.token.toHex();
+    setPathTx.distToken = call.inputs.token.toHex();
     setPathTx.path = call.inputs.path;
 
-    let pathTokens = setPathTx.tokens || [];
-    let pathFees = setPathTx.fees || [];
+    let pathPools = setPathTx.pathPools || [];
+    pathPools.splice(0, pathPools.length);
     let count = 0;
-    let finalToken = '';
     let data = call.inputs.path.toHex().substr(2);
     do {
-        pathTokens.push('0x' + data.substr(0, 40));
-        pathFees.push(parseInt('0x' + data.substr(40, 6)) as i32);
-        finalToken = '0x' + data.substr(46, 40);
+        let pathPoolId = call.to.toHex() + "-" + call.inputs.token.toHex() + count.toString();
+        let pathPool = PathPool.load(pathPoolId) || new PathPool(pathPoolId);
+        pathPool.tokenIn = '0x' + data.substr(0, 40);
+        pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
+        pathPool.tokenOut = '0x' + data.substr(46, 40);
+        pathPool.save();
+        pathPools.push(pathPoolId);
         count += 1;
         data = data.substr(count * 46);
     } while (data.length >= 86);
-    pathTokens.push(finalToken);
-    setPathTx.tokens = pathTokens;
-    setPathTx.fees = pathFees;
+    setPathTx.pathPools = pathPools;
 
     setPathTx.save();
     transaction.save();
@@ -279,23 +281,22 @@ export function handleSetPath(call: SetPathCall): void {
     }
 
     path.path = call.inputs.path;
-    let pathTokens = path.tokens || [];
-    let pathFees = path.fees || [];
-    pathTokens.splice(0, pathTokens.length);
-    pathFees.splice(0, pathFees.length);
+    let pathPools = path.pathPools || [];
+    pathPools.splice(0, pathPools.length);
     let count = 0;
-    let finalToken = '';
     let data = call.inputs.path.toHex().substr(2);
     do {
-        pathTokens.push('0x' + data.substr(0, 40));
-        pathFees.push(parseInt('0x' + data.substr(40, 6)) as i32);
-        finalToken = '0x' + data.substr(46, 40);
+        let pathPoolId = call.inputs.fund.toHex() + "-" + call.inputs.distToken.toHex() + count.toString();
+        let pathPool = PathPool.load(pathPoolId) || new PathPool(pathPoolId);
+        pathPool.tokenIn = '0x' + data.substr(0, 40);
+        pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
+        pathPool.tokenOut = '0x' + data.substr(46, 40);
+        pathPool.save();
+        pathPools.push(pathPoolId);
         count += 1;
         data = data.substr(count * 46);
     } while (data.length >= 86);
-    pathTokens.push(finalToken);
-    path.tokens = pathTokens;
-    path.fees = pathFees;
+    path.pathPools = pathPools;
 
     path.save();
     setPathTx.save();
@@ -512,7 +513,7 @@ export function handleBlock(block: ethereum.Block): void {
     let modDay = block.timestamp.mod(BigInt.fromI32(86400));
     if (modDay.gt(BigInt.fromI32(24)) && modDay.lt(BigInt.fromI32(86376))) {
         //old data 60*60s处理一次  12h=2880block
-        if (block.number.lt(BigInt.fromI32(10357470)) && block.number.mod(BigInt.fromI32(60 * 4))
+        if (block.number.lt(BigInt.fromI32(10388255)) && block.number.mod(BigInt.fromI32(60 * 4))
             .notEqual(ZERO_BI)) return;
 
         //For performance, every 4*4 blocks are processed for about 4*60s
