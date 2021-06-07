@@ -284,6 +284,6 @@ export function calFeesOfPosition(params: CalFeesParams, position: Position, uni
     let amount1 = convertTokenToDecimal((feeGrowthInside1X128.minus(position.feeGrowthInside1LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals1);
 
     let feesUSD = amount0.times(params.token0PriceUSD).plus(amount1.times(params.token1PriceUSD));
-    let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
-    return {fees, feeGrowthInside0X128, feeGrowthInside1X128}
+    // let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
+    return {fees: feesUSD, feeGrowthInside0X128, feeGrowthInside1X128}
 }
