@@ -14,6 +14,7 @@ import {ERC20} from "../../generated/Controller/ERC20";
 import {UniV3Pool} from "../../generated/Controller/UniV3Pool";
 import {
     AddTx,
+    Bundle,
     Fund,
     FundSummary,
     HarvestSummary,
@@ -45,6 +46,7 @@ import {
     getTokenPriceUSD,
     ONE_BI,
     uniV3Factory,
+    WETH_ADDRESS,
     ZERO_BD,
     ZERO_BI
 } from "../helpers";
@@ -326,7 +328,13 @@ function updateFees(block: ethereum.Block,
     manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees);
     updateFundDayData(block, fundEntity, totalShare);
 
-    if (isSaveSummary) fundSummary.save();
+    if (isSaveSummary) {
+        fundSummary.save();
+    } else {
+        let bundle = Bundle.load("1") || new Bundle("1");
+        bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS) as Token);
+        bundle.save();
+    }
     manager.save();
 }
 

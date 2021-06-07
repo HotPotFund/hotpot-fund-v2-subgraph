@@ -1,3 +1,9 @@
+type Bundle @entity {
+    id: ID!
+
+    ethPriceUSD: BigDecimal!
+}
+
 type Token @entity {
     # token address
     id: ID!

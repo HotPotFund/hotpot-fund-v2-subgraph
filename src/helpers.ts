@@ -15,6 +15,7 @@ export let ONE_BI = BigInt.fromI32(1);
 export let ZERO_BD = BigDecimal.fromString('0');
 export let ONE_BD = BigDecimal.fromString('1');
 export let BI_18 = BigInt.fromI32(18);
+export let BI_6 = BigInt.fromI32(6);
 
 // export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 export const WETH_ADDRESS = '0xc778417e063141139fce010982780140aa0cd5ab';//ropsten
@@ -50,12 +51,17 @@ function getEthPriceInUSD(): BigDecimal {
     let result = usdcPool.try_slot0();
     if (!result.reverted) {
         let sqrtPrice = (result.value.value0).toBigDecimal().div(FixedPoint_Q96_BD);
-        return sqrtPrice.times(sqrtPrice);
+        let price0 = sqrtPrice.times(sqrtPrice)
+            .times(exponentToBigDecimal(BI_6))
+            .div(exponentToBigDecimal(BI_18));
+        return ONE_BD.div(price0);
     } else
         return ZERO_BD;
 }
 
 export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
+    if (tokenEntity == null) return ZERO_BD;
+
     let ethUsdPrice = getEthPriceInUSD();
     if (tokenEntity.id == WETH_ADDRESS) return ethUsdPrice;
 
@@ -69,12 +75,14 @@ export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
         let uniV3Pool = UniV3Pool.bind(ethPoolAddr);
         let sqrtPrice0: BigDecimal = ZERO_BD;
         let result = uniV3Pool.try_slot0();
-        if (!result.reverted) sqrtPrice0 = (uniV3Pool.slot0().value0).toBigDecimal().div(FixedPoint_Q96_BD);
+        if (!result.reverted) sqrtPrice0 = (result.value.value0).toBigDecimal().div(FixedPoint_Q96_BD);
         let price0 = sqrtPrice0.times(sqrtPrice0);
 
         if (tokenEntity.id < WETH_ADDRESS) {
+            price0 = price0.times(exponentToBigDecimal(tokenEntity.decimals)).div(exponentToBigDecimal(BI_18));
             priceSoFar = price0.times(ethUsdPrice);
         } else {
+            price0 = price0.times(exponentToBigDecimal(BI_18)).div(exponentToBigDecimal(tokenEntity.decimals));
             priceSoFar = price0.notEqual(ZERO_BD) ? ONE_BD.div(price0).times(ethUsdPrice) : ZERO_BD;
         }
     }
@@ -88,13 +96,19 @@ export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
         let uniV3Pool = UniV3Pool.bind(poolAddress);
         let sqrtPrice0: BigDecimal = ZERO_BD;
         let result = uniV3Pool.try_slot0();
-        if (!result.reverted) sqrtPrice0 = (uniV3Pool.slot0().value0).toBigDecimal().div(FixedPoint_Q96_BD);
+        if (!result.reverted) sqrtPrice0 = (result.value.value0).toBigDecimal().div(FixedPoint_Q96_BD);
         let price0 = sqrtPrice0.times(sqrtPrice0);
 
-        if (tokenEntity.id > STABLE_TOKENS[i]) price0 = price0.notEqual(ZERO_BD) ? ONE_BD.div(price0) : ZERO_BD;
-
         let stableCoin = ERC20.bind(Address.fromString(STABLE_TOKENS[i]));
-        let liquidity = convertTokenToDecimal(stableCoin.balanceOf(poolAddress), BigInt.fromI32(stableCoin.decimals()));
+        let stableCoinDecimals = BigInt.fromI32(stableCoin.decimals());
+        if (tokenEntity.id < STABLE_TOKENS[i]) {
+            price0 = price0.times(exponentToBigDecimal(tokenEntity.decimals)).div(exponentToBigDecimal(stableCoinDecimals));
+        } else {
+            price0 = price0.times(exponentToBigDecimal(stableCoinDecimals)).div(exponentToBigDecimal(tokenEntity.decimals));
+            price0 = price0.notEqual(ZERO_BD) ? ONE_BD.div(price0) : ZERO_BD;
+        }
+
+        let liquidity = convertTokenToDecimal(stableCoin.balanceOf(poolAddress), stableCoinDecimals);
         if (largestUSDLiquidity.lt(liquidity)) {
             largestUSDLiquidity = liquidity;
             priceSoFar = price0;
