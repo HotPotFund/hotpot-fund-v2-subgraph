@@ -71,7 +71,7 @@ export function updateFundPools(fundEntity: Fund,
             token0PriceUSD: ZERO_BD,
             token1PriceUSD: ZERO_BD,
             decimals0: token0Entity.decimals,
-            decimals1: token0Entity.decimals,
+            decimals1: token1Entity.decimals,
         };
         if (fundTokenEntity.id == token0Entity.id)
             params.token0PriceUSD = params.fundTokenPriceUSD;
