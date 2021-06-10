@@ -541,6 +541,9 @@ export function handleBlock(block: ethereum.Block): void {
         totalAssetsUSD = totalAssetsUSD.plus(fundEntity.totalAssetsUSD);
         fundEntity.save();
     }
+    let bundle = Bundle.load("1") || new Bundle("1");
+    bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS) as Token);
+    bundle.save();
     fundSummary.totalAssetsUSD = totalAssetsUSD;
     fundSummary.save();
 }
