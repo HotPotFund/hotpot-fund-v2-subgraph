@@ -45,7 +45,7 @@ import {
     fetchTokenTotalSupply,
     FixedPoint_Q128_BD,
     getTokenPriceUSD,
-    ONE_BI,
+    ONE_BI, STABLE_TOKENS,
     uniV3Factory,
     WETH_ADDRESS,
     ZERO_BD,
@@ -217,13 +217,14 @@ export function handleSetHarvestPath(call: SetHarvestPathCall): void {
         token.decimals = decimals;
     }
     token.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(address, call.to), token.decimals);
-    token.save();
 
     let txId = call.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);
     let id = txId + "-" + BigInt.fromI32(transaction.setHarvestPaths.length).toString();
     transaction.setHarvestPaths = transaction.setHarvestPaths.concat([id]);
     syncTxStatusData(transaction as Transaction, call);
+    token.setHarvestPathTx = id;
+    token.save();
 
     let setPathTx = new SetHarvestPathTx(id);
     setPathTx.transaction = txId;
@@ -240,6 +241,7 @@ export function handleSetHarvestPath(call: SetHarvestPathCall): void {
         pathPool.tokenIn = '0x' + data.substr(0, 40);
         pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
         pathPool.tokenOut = '0x' + data.substr(46, 40);
+        pathPool.address = uniV3Factory.getPool(Address.fromString(pathPool.tokenIn), Address.fromString(pathPool.tokenOut), pathPool.fee);
         pathPool.save();
         pathPools.push(pathPoolId);
         count += 1;
@@ -284,6 +286,7 @@ export function handleSetPath(call: SetPathCall): void {
         pathPool.tokenIn = '0x' + data.substr(0, 40);
         pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
         pathPool.tokenOut = '0x' + data.substr(46, 40);
+        pathPool.address = uniV3Factory.getPool(Address.fromString(pathPool.tokenIn), Address.fromString(pathPool.tokenOut), pathPool.fee);
         pathPool.save();
         pathPools.push(pathPoolId);
         count += 1;

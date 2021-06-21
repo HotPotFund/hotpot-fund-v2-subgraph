@@ -16,6 +16,7 @@ type Token @entity {
     isVerified: Boolean!
 
     fundIncome: BigDecimal!
+    setHarvestPathTx: SetHarvestPathTx
 }
 
 # 所有基金汇总数据
@@ -90,7 +91,7 @@ type Fund @entity {
 }
 
 type Path @entity {
-    # fund address + token address + is_buy
+    # fund address + token address
     id: ID!
     fund: Fund!
 
@@ -107,6 +108,8 @@ type PathPool @entity {
     tokenIn: Token!
     tokenOut: Token!
     fee: Int!
+
+    address: Bytes!
 }
 
 type Manager @entity {
