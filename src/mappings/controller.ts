@@ -38,6 +38,7 @@ import {
     CalFeesParams,
     convertTokenToDecimal,
     exponentToBigDecimal,
+    fetchTokenBalanceOf,
     fetchTokenDecimals,
     fetchTokenName,
     fetchTokenSymbol,
@@ -159,6 +160,7 @@ export function handleChangeVerifiedToken(event: ChangeVerifiedToken): void {
         token.decimals = decimals;
     }
     token.isVerified = event.params.isVerified;
+    token.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(address, event.address), token.decimals);
 
     token.save();
 }
@@ -171,21 +173,7 @@ export function handleHarvest(event: Harvest): void {
     syncTxStatusDataWithEvent(transaction as Transaction, event as ethereum.Event);
 
     let tokenEntity = Token.load(event.params.token.toHex()) as Token;
-    if (tokenEntity === null) {
-        tokenEntity = new Token(event.params.token.toHex());
-        tokenEntity.symbol = fetchTokenSymbol(event.params.token);
-        tokenEntity.name = fetchTokenName(event.params.token);
-        tokenEntity.totalSupply = fetchTokenTotalSupply(event.params.token);
-        tokenEntity.isVerified = false;
-        let decimals = fetchTokenDecimals(event.params.token);
-        // bail if we couldn't figure out the decimals
-        if (decimals === null) {
-            log.debug('mybug the decimal on token 0 was null', []);
-            decimals = BI_18;//默认设为18位精度
-        }
-        tokenEntity.decimals = decimals;
-        tokenEntity.save();
-    }
+    tokenEntity.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(event.params.token, event.address), tokenEntity.decimals);
 
     let havestTx = HarvestTx.load(id) || new HarvestTx(id);
     havestTx.transaction = txId;
@@ -205,6 +193,7 @@ export function handleHarvest(event: Harvest): void {
     harvestSummary.totalBurned = harvestSummary.totalBurned.plus(havestTx.burned);
     harvestSummary.totalAmountUSD = harvestSummary.totalAmountUSD.plus(havestTx.amountUSD);
 
+    tokenEntity.save();
     havestTx.save();
     transaction.save();
     harvestSummary.save();
@@ -212,8 +201,9 @@ export function handleHarvest(event: Harvest): void {
 
 export function handleSetHarvestPath(call: SetHarvestPathCall): void {
     let address = call.inputs.token;
-    if (Token.load(address.toHex()) === null) {
-        let token = new Token(address.toHex());
+    let token = Token.load(address.toHex());
+    if (token === null) {
+        token = new Token(address.toHex());
         token.symbol = fetchTokenSymbol(address);
         token.name = fetchTokenName(address);
         token.totalSupply = fetchTokenTotalSupply(address);
@@ -225,8 +215,9 @@ export function handleSetHarvestPath(call: SetHarvestPathCall): void {
             decimals = BI_18;//默认设为18位精度
         }
         token.decimals = decimals;
-        token.save();
     }
+    token.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(address, call.to), token.decimals);
+    token.save();
 
     let txId = call.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);

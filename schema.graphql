@@ -14,6 +14,8 @@ type Token @entity {
     totalSupply: BigInt!
 
     isVerified: Boolean!
+
+    fundIncome: BigDecimal!
 }
 
 # 所有基金汇总数据

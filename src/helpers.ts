@@ -197,6 +197,16 @@ export function fetchTokenTotalSupply(tokenAddress: Address): BigInt {
     return BigInt.fromI32(totalSupplyValue as i32)
 }
 
+export function fetchTokenBalanceOf(tokenAddress: Address, owner: Address): BigInt {
+    let contract = ERC20.bind(tokenAddress);
+    let balanceValue = 0;
+    let balanceValueResult = contract.try_balanceOf(owner);
+    if (!balanceValueResult.reverted) {
+        balanceValue = balanceValueResult as i32
+    }
+    return BigInt.fromI32(balanceValue as i32)
+}
+
 export function fetchTokenDecimals(tokenAddress: Address): BigInt {
     let contract = ERC20.bind(tokenAddress);
     // try types uint8 for decimals
