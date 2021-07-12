@@ -206,9 +206,16 @@ type Position @entity {
     tickLower: BigInt!
     tickUpper: BigInt!
 
-#    #投入数量
-#    token0Amount: BigInt!
-#    token1Amount: BigInt!
+    #池子代币数量
+    amount0: BigDecimal!
+    amount1: BigDecimal!
+    amount: BigDecimal!
+    amountUSD: BigDecimal!
+    fees0: BigDecimal!
+    fees1: BigDecimal!
+    fees: BigDecimal!
+    feesUSD: BigDecimal!
+
     feeGrowthInside0LastX128: BigInt!,
     feeGrowthInside1LastX128: BigInt!,
     liquidity: BigInt!,

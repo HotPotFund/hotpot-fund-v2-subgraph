@@ -4,10 +4,14 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy HotPotFund/hotpotfund-v2-ropsten --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/",
-    "create-local": "graph create --node http://localhost:8020/ HotPotFund/hotpotfund-v2-ropsten",
-    "remove-local": "graph remove --node http://localhost:8020/ HotPotFund/hotpotfund-v2-ropsten",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 HotPotFund/hotpotfund-v2-ropsten"
+    "deploy": "graph deploy HotPotFund/hotpot-fund-v2 --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/",
+    "create-local": "graph create --node http://localhost:8020/ HotPotFund/hotpot-fund-v2",
+    "remove-local": "graph remove --node http://localhost:8020/ HotPotFund/hotpot-fund-v2",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 HotPotFund/hotpot-fund-v2",
+    "deploy:dev": "graph deploy HotPotFund/hotpotfund-v2-ropsten --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/",
+    "create-local:dev": "graph create --node http://localhost:8020/ HotPotFund/hotpotfund-v2-ropsten",
+    "remove-local:dev": "graph remove --node http://localhost:8020/ HotPotFund/hotpotfund-v2-ropsten",
+    "deploy-local:dev": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 HotPotFund/hotpotfund-v2-ropsten"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "^0.20.0",

@@ -36,6 +36,7 @@ import {
     BI_18,
     calFeesOfPosition,
     CalFeesParams,
+    calUniV3Position,
     convertTokenToDecimal,
     exponentToBigDecimal,
     fetchTokenBalanceOf,
@@ -45,7 +46,7 @@ import {
     fetchTokenTotalSupply,
     FixedPoint_Q128_BD,
     getTokenPriceUSD,
-    ONE_BI, STABLE_TOKENS,
+    ONE_BI,
     uniV3Factory,
     WETH_ADDRESS,
     ZERO_BD,
@@ -54,6 +55,7 @@ import {
 import {Address, ByteArray} from "@graphprotocol/graph-ts/index";
 import {Fund as FundContract} from "../../generated/templates/Fund/Fund";
 import {updateFundDayData} from "./dayUpdates";
+import {START_PROCESS_BLOCK} from "../helpers-main";
 
 
 export function updateFundPools(fundEntity: Fund,
@@ -97,6 +99,15 @@ export function updateFundPools(fundEntity: Fund,
             position.assetAmount = convertTokenToDecimal(fund.assetsOfPosition(BigInt.fromI32(poolIndex), BigInt.fromI32(positionIndex)), fundTokenEntity.decimals);
             position.assetAmountUSD = position.assetAmount.times(fundTokenPriceUSD);
             position.assetShare = fundEntity.totalAssets.gt(ZERO_BD) ? position.assetAmount.div(fundEntity.totalAssets) : ZERO_BD;
+            let uniV3Position = calUniV3Position(params, position, uniV3Pool);
+            position.amount = uniV3Position.amount;
+            position.amountUSD = uniV3Position.amountUSD;
+            position.amount0 = uniV3Position.amount0;
+            position.amount1 = uniV3Position.amount1;
+            position.fees = uniV3Position.fees;
+            position.feesUSD = uniV3Position.feesUSD;
+            position.fees0 = uniV3Position.fees0;
+            position.fees1 = uniV3Position.fees1;
             position.save();
         }
 
@@ -402,10 +413,19 @@ export function handleInit(call: InitCall): void {
         + initTx.tickLower.toHex().substr(2).padStart(6, "0")
         + initTx.tickUpper.toHex().substr(2).padStart(6, "0");
     position.positionKey = Bytes.fromHexString(crypto.keccak256(ByteArray.fromHexString(keyEncoded)).toHex()) as Bytes;
-    position.liquidity = uniV3Pool.positions(position.positionKey).value0;
+    let uniV3Position = uniV3Pool.positions(position.positionKey);
+    position.liquidity = uniV3Position.value0;
     position.assetAmount = convertTokenToDecimal(fund.assetsOfPosition(BigInt.fromI32(poolIndex), positionIndex), fundTokenEntity.decimals);
     position.assetAmountUSD = fundTokenPriceUSD.times(pool.assetAmount);
     position.assetShare = fundEntity.totalAssets.gt(ZERO_BD) ? position.assetAmount.div(fundEntity.totalAssets) : ZERO_BD;
+    position.amount0 = ZERO_BD;
+    position.amount1 = ZERO_BD;
+    position.amount = position.assetAmount;
+    position.amountUSD = position.assetAmountUSD;
+    position.fees0 = ZERO_BD;
+    position.fees1 = ZERO_BD;
+    position.fees = ZERO_BD;
+    position.feesUSD = ZERO_BD;
 
     pool.save();
     position.save();
@@ -515,7 +535,7 @@ export function handleBlock(block: ethereum.Block): void {
     let modDay = block.timestamp.mod(BigInt.fromI32(86400));
     if (modDay.gt(BigInt.fromI32(24)) && modDay.lt(BigInt.fromI32(86376))) {
         //old data 60*60s处理一次  12h=2880block
-        if (block.number.lt(BigInt.fromI32(10388255)) && block.number.mod(BigInt.fromI32(60 * 4))
+        if (block.number.lt(BigInt.fromI32(START_PROCESS_BLOCK)) && block.number.mod(BigInt.fromI32(60 * 4))
             .notEqual(ZERO_BI)) return;
 
         //For performance, every 4*4 blocks are processed for about 4*60s

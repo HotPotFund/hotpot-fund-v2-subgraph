@@ -17,13 +17,14 @@ export let ONE_BD = BigDecimal.fromString('1');
 export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
 
+// export let START_PROCESS_BLOCK = 12803107;
+export let START_PROCESS_BLOCK = 10620320;//ropsten
+
 // export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 export const WETH_ADDRESS = '0xc778417e063141139fce010982780140aa0cd5ab';//ropsten
-export const UNI_V3_FACTORY_ADDRESS = '0x1f98431c8ad98523631ae4a59f267346ea31f984';
 
-// const DAI_WETH_03_POOL = '0xc2e9f25be6257c210d7adf0d4cd6e3e881ba25f8'
-// const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';
-const USDC_WETH_03_POOL = '0x35a23a79310d3cabd81bdf0df75f39afb51560f5';//ropsten
+const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';
+// const USDC_WETH_03_POOL = '0x35a23a79310d3cabd81bdf0df75f39afb51560f5';//ropsten
 
 // token where amounts should contribute to tracked volume and liquidity
 export let STABLE_TOKENS: string[] = [
@@ -37,6 +38,7 @@ export let STABLE_TOKENS: string[] = [
     '0x722abbe70fb536d12e3506b6b062813f8b8b7b04', // ropsten sUSD
 ];
 
+export const UNI_V3_FACTORY_ADDRESS = '0x1f98431c8ad98523631ae4a59f267346ea31f984';
 export let uniV3Factory = UniV3Factory.bind(Address.fromString(UNI_V3_FACTORY_ADDRESS));
 
 export let FixedPoint_Q128_BD = BigInt.fromI32(2).pow(128).toBigDecimal();
@@ -310,4 +312,151 @@ export function calFeesOfPosition(params: CalFeesParams, position: Position, uni
     let feesUSD = amount0.times(params.token0PriceUSD).plus(amount1.times(params.token1PriceUSD));
     // let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
     return {fees: feesUSD, feeGrowthInside0X128, feeGrowthInside1X128}
+}
+
+export class UniV3Position {
+    fees0: BigDecimal;  //token0  fee
+    fees1: BigDecimal;  //token1  fee
+    fees: BigDecimal;   //fundToken fee
+    feesUSD: BigDecimal;//usd fee
+
+    amount0: BigDecimal;
+    amount1: BigDecimal;
+    amount: BigDecimal;
+    amountUSD: BigDecimal;
+}
+
+export function calUniV3Position(params: CalFeesParams, position: Position, uniPool: UniV3Pool): UniV3Position {
+    let uniV3Position = uniPool.positions(position.positionKey);
+    // calculate accumulated fees
+    let fees0 = convertTokenToDecimal((position.feeGrowthInside0LastX128.minus(uniV3Position.value1)).times(uniV3Position.value0).div(FixedPoint_Q128_BI), params.decimals0);
+    let fees1 = convertTokenToDecimal((position.feeGrowthInside1LastX128.minus(uniV3Position.value2)).times(uniV3Position.value0).div(FixedPoint_Q128_BI), params.decimals1);
+
+    fees0 = fees0.plus(convertTokenToDecimal(uniV3Position.value3, params.decimals0));
+    fees1 = fees1.plus(convertTokenToDecimal(uniV3Position.value4, params.decimals1));
+
+    let feesUSD = fees0.times(params.token0PriceUSD).plus(fees1.times(params.token1PriceUSD));
+    let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
+
+    let amount0 = ZERO_BD, amount1 = ZERO_BD;
+    let sqrtPriceX96 = getSqrtRatioAtTick(params.tickCurrent);
+    // 计算流动性资产
+    if (params.tickCurrent < position.tickLower.toI32()) {
+        // current tick is below the passed range; liquidity can only become in range by crossing from left to
+        // right, when we'll need _more_ token0 (it's becoming more valuable) so user must provide it
+        amount0 = convertTokenToDecimal(getAmount0Delta(
+            getSqrtRatioAtTick(position.tickLower.toI32()),
+            getSqrtRatioAtTick(position.tickUpper.toI32()),
+            uniV3Position.value0,
+            true
+        ), params.decimals0)
+    } else if (params.tickCurrent < position.tickUpper.toI32()) {
+        // current tick is inside the passed range
+        amount0 = convertTokenToDecimal(getAmount0Delta(
+            sqrtPriceX96,
+            getSqrtRatioAtTick(position.tickUpper.toI32()),
+            uniV3Position.value0,
+            true
+        ), params.decimals0);
+        amount1 = convertTokenToDecimal(getAmount1Delta(
+            getSqrtRatioAtTick(position.tickLower.toI32()),
+            sqrtPriceX96,
+            uniV3Position.value0,
+            true
+        ), params.decimals1);
+    } else {
+        // current tick is above the passed range; liquidity can only become in range by crossing from right to
+        // left, when we'll need _more_ token1 (it's becoming more valuable) so user must provide it
+        amount1 = convertTokenToDecimal(getAmount1Delta(
+            getSqrtRatioAtTick(position.tickLower.toI32()),
+            getSqrtRatioAtTick(position.tickUpper.toI32()),
+            uniV3Position.value0,
+            true
+        ), params.decimals1);
+    }
+
+    let amountUSD = amount0.times(params.token0PriceUSD).plus(amount1.times(params.token1PriceUSD));
+    let amount = params.fundTokenPriceUSD.gt(ZERO_BD) ? amountUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
+
+    return {fees, feesUSD, fees0, fees1, amount0, amount1, amount, amountUSD};
+}
+
+function getSqrtRatioAtTick(tick: i32): BigInt {
+    let val = 1.0001 ** tick;
+    return BigDecimal.fromString((val).toString())
+        .times(BigInt.fromI32(2).pow(192).toBigDecimal()).digits.sqrt()
+}
+
+function divRoundingUp(x: BigInt, y: BigInt): BigInt {
+    return x.div(y).plus(x.mod(y).gt(ZERO_BI) ? ONE_BI : ZERO_BI);
+}
+
+function mulDivRoundingUp(a: BigInt, b: BigInt, denominator: BigInt): BigInt {
+    let result = a.times(b).div(denominator);
+    if (a.times(b).mod(denominator).gt(ZERO_BI)) result = result.plus(ONE_BI);
+    return result;
+}
+
+function getAmount0DeltaAmount(
+    sqrtRatioAX96: BigInt,
+    sqrtRatioBX96: BigInt,
+    liquidity: BigInt,
+    roundUp: boolean
+): BigInt {
+    if (sqrtRatioAX96.gt(sqrtRatioBX96)) {
+        let temp = sqrtRatioAX96;
+        sqrtRatioAX96 = sqrtRatioBX96;
+        sqrtRatioBX96 = temp;
+    }
+
+    let amount0: BigInt;
+    let numerator1 = liquidity.times(FixedPoint_Q96_BI);
+    let numerator2 = sqrtRatioBX96.minus(sqrtRatioAX96);
+
+    amount0 = roundUp ? divRoundingUp(numerator1.times(numerator2).div(sqrtRatioBX96), sqrtRatioAX96)
+        : numerator1.times(numerator2).div(sqrtRatioBX96).div(sqrtRatioAX96);
+
+    return amount0
+}
+
+function getAmount1DeltaAmount(
+    sqrtRatioAX96: BigInt,
+    sqrtRatioBX96: BigInt,
+    liquidity: BigInt,
+    roundUp: boolean
+): BigInt {
+    if (sqrtRatioAX96.gt(sqrtRatioBX96)) {
+        let temp = sqrtRatioAX96;
+        sqrtRatioAX96 = sqrtRatioBX96;
+        sqrtRatioBX96 = temp;
+    }
+
+    return roundUp ? mulDivRoundingUp(liquidity, sqrtRatioBX96.minus(sqrtRatioAX96), FixedPoint_Q96_BI)
+        : liquidity.times(sqrtRatioBX96.minus(sqrtRatioAX96)).div(FixedPoint_Q96_BI)
+}
+
+function getAmount0Delta(
+    sqrtRatioAX96: BigInt,
+    sqrtRatioBX96: BigInt,
+    liquidity: BigInt,
+    isRemoveLP: boolean
+): BigInt {
+    if (isRemoveLP) {
+        return getAmount0DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, false)
+    } else {
+        return getAmount0DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
+    }
+}
+
+function getAmount1Delta(
+    sqrtRatioAX96: BigInt,
+    sqrtRatioBX96: BigInt,
+    liquidity: BigInt,
+    isRemoveLP: boolean
+): BigInt {
+    if (isRemoveLP) {
+        return getAmount1DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, false)
+    } else {
+        return getAmount1DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
+    }
 }
