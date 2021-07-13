@@ -1,4 +1,4 @@
-import {BigDecimal, BigInt, Bytes, crypto, ethereum, log} from "@graphprotocol/graph-ts"
+import {BigDecimal, BigInt, ethereum, log} from "@graphprotocol/graph-ts"
 
 import {
     AddCall,
@@ -45,17 +45,18 @@ import {
     fetchTokenSymbol,
     fetchTokenTotalSupply,
     FixedPoint_Q128_BD,
+    getPositionKey,
     getTokenPriceUSD,
     ONE_BI,
+    START_PROCESS_BLOCK,
     uniV3Factory,
     WETH_ADDRESS,
     ZERO_BD,
     ZERO_BI
 } from "../helpers";
-import {Address, ByteArray} from "@graphprotocol/graph-ts/index";
+import {Address} from "@graphprotocol/graph-ts/index";
 import {Fund as FundContract} from "../../generated/templates/Fund/Fund";
 import {updateFundDayData} from "./dayUpdates";
-import {START_PROCESS_BLOCK} from "../helpers-main";
 
 
 export function updateFundPools(fundEntity: Fund,
@@ -68,8 +69,10 @@ export function updateFundPools(fundEntity: Fund,
         let token0Entity = Token.load(pool.token0) as Token;
         let token1Entity = Token.load(pool.token1) as Token;
         let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
+        let slot0 = uniV3Pool.slot0();
         let params: CalFeesParams = {
-            tickCurrent: uniV3Pool.slot0().value1,
+            sqrtPriceX96: slot0.value0,
+            tickCurrent: slot0.value1,
             feeGrowthGlobal0X128: uniV3Pool.feeGrowthGlobal0X128(),
             feeGrowthGlobal1X128: uniV3Pool.feeGrowthGlobal1X128(),
             fundTokenPriceUSD,
@@ -404,17 +407,15 @@ export function handleInit(call: InitCall): void {
     initTx.position = position.id;
     position.pool = pool.id;
     position.fund = fundEntity.id;
-    position.isEmpty = !initTx.amount.notEqual(ZERO_BD);
+    position.isEmpty = !call.inputs.amount.notEqual(ZERO_BI);
     position.tickLower = initTx.tickLower;
     position.tickUpper = initTx.tickUpper;
-    position.feeGrowthInside0LastX128 = uniV3Pool.feeGrowthGlobal0X128();
-    position.feeGrowthInside1LastX128 = uniV3Pool.feeGrowthGlobal1X128();
-    let keyEncoded = fundEntity.id
-        + initTx.tickLower.toHex().substr(2).padStart(6, "0")
-        + initTx.tickUpper.toHex().substr(2).padStart(6, "0");
-    position.positionKey = Bytes.fromHexString(crypto.keccak256(ByteArray.fromHexString(keyEncoded)).toHex()) as Bytes;
+    position.positionKey = getPositionKey(fundEntity.id, initTx.tickLower, initTx.tickUpper);
     let uniV3Position = uniV3Pool.positions(position.positionKey);
     position.liquidity = uniV3Position.value0;
+    //有可能是0，用于结算一段时间内的fees收益
+    position.feeGrowthInside0LastX128 = uniV3Position.value1;
+    position.feeGrowthInside1LastX128 = uniV3Position.value2;
     position.assetAmount = convertTokenToDecimal(fund.assetsOfPosition(BigInt.fromI32(poolIndex), positionIndex), fundTokenEntity.decimals);
     position.assetAmountUSD = fundTokenPriceUSD.times(pool.assetAmount);
     position.assetShare = fundEntity.totalAssets.gt(ZERO_BD) ? position.assetAmount.div(fundEntity.totalAssets) : ZERO_BD;

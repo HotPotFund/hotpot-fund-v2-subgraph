@@ -1,5 +1,5 @@
 /* eslint-disable prefer-const */
-import {Address, BigDecimal, BigInt} from '@graphprotocol/graph-ts'
+import {Address, BigDecimal, BigInt, Bytes, log} from '@graphprotocol/graph-ts'
 import {Position, Token} from "../generated/schema";
 
 import {UniV3Factory} from "../generated/Controller/UniV3Factory";
@@ -7,6 +7,7 @@ import {UniV3Pool} from "../generated/Controller/UniV3Pool";
 import {ERC20} from "../generated/Controller/ERC20";
 import {ERC20SymbolBytes} from "../generated/Controller/ERC20SymbolBytes";
 import {ERC20NameBytes} from "../generated/Controller/ERC20NameBytes";
+import {ByteArray, crypto} from "@graphprotocol/graph-ts/index";
 
 export const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -16,26 +17,27 @@ export let ZERO_BD = BigDecimal.fromString('0');
 export let ONE_BD = BigDecimal.fromString('1');
 export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
+export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).leftShift(1).minus(ONE_BI);
 
-// export let START_PROCESS_BLOCK = 12803107;
-export let START_PROCESS_BLOCK = 10620320;//ropsten
+export let START_PROCESS_BLOCK = 12815965;
+// export let START_PROCESS_BLOCK = 10620320;//ropsten
 
-// export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-export const WETH_ADDRESS = '0xc778417e063141139fce010982780140aa0cd5ab';//ropsten
+export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
+// export const WETH_ADDRESS = '0xc778417e063141139fce010982780140aa0cd5ab';//ropsten
 
 const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';
 // const USDC_WETH_03_POOL = '0x35a23a79310d3cabd81bdf0df75f39afb51560f5';//ropsten
 
 // token where amounts should contribute to tracked volume and liquidity
 export let STABLE_TOKENS: string[] = [
-    // '0x6b175474e89094c44da98b954eedeac495271d0f', // DAI
-    '0x46ea852f836fd93afdd80e8af2fcbd70b73044a6', // ropsten DAI
-    // '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // USDC
-    '0x74945623f947b0a8764cd365d3a4784e7d91c8e4', // ropsten USDC
-    // '0xdac17f958d2ee523a2206206994597c13d831ec7', // USDT
-    '0x1465fff54d9d746601845ca2762a0111671cc830', // ropsten USDT
-    // '0x0000000000085d4780b73119b644ae5ecd22b376', // TUSD
-    '0x722abbe70fb536d12e3506b6b062813f8b8b7b04', // ropsten sUSD
+    '0x6b175474e89094c44da98b954eedeac495271d0f', // DAI
+    // '0x46ea852f836fd93afdd80e8af2fcbd70b73044a6', // ropsten DAI
+    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // USDC
+    // '0x74945623f947b0a8764cd365d3a4784e7d91c8e4', // ropsten USDC
+    '0xdac17f958d2ee523a2206206994597c13d831ec7', // USDT
+    // '0x1465fff54d9d746601845ca2762a0111671cc830', // ropsten USDT
+    '0x0000000000085d4780b73119b644ae5ecd22b376', // TUSD
+    // '0x722abbe70fb536d12e3506b6b062813f8b8b7b04', // ropsten sUSD
 ];
 
 export const UNI_V3_FACTORY_ADDRESS = '0x1f98431c8ad98523631ae4a59f267346ea31f984';
@@ -221,6 +223,13 @@ export function fetchTokenDecimals(tokenAddress: Address): BigInt {
     return BigInt.fromI32(decimalValue as i32)
 }
 
+export function getPositionKey(pool: string, tickLower: BigInt, tickUpper: BigInt): Bytes {
+    let packedMsg = pool
+        + tickLower.bitAnd(BigInt.fromI32(0xffffff)).toHex().substr(2).padStart(6, "0")
+        + tickUpper.bitAnd(BigInt.fromI32(0xffffff)).toHex().substr(2).padStart(6, "0");
+    return Bytes.fromHexString(crypto.keccak256(ByteArray.fromHexString(packedMsg)).toHex()) as Bytes;
+}
+
 class FeeGrowthInsideParams {
     pool: UniV3Pool;
     tickLower: i32;
@@ -239,43 +248,44 @@ export function getFeeGrowthInside(params: FeeGrowthInsideParams): FeeGrowthInsi
     let feeGrowthInside0X128: BigInt;
     let feeGrowthInside1X128: BigInt;
 
+    // log.debug('GrowthInside tickLower:{}, tickUpper:{}, tickCurrent:{}', [params.tickLower.toString(), params.tickUpper.toString(), params.tickCurrent.toString()]);
     // calculate fee growth below
-    let results = params.pool.ticks(params.tickLower);
-    let lowerFeeGrowthOutside0X128 = results.value2;
-    let lowerFeeGrowthOutside1X128 = results.value3;
-
+    let lower = params.pool.ticks(params.tickLower);
     let feeGrowthBelow0X128: BigInt;
     let feeGrowthBelow1X128: BigInt;
     if (params.tickCurrent >= params.tickLower) {
-        feeGrowthBelow0X128 = lowerFeeGrowthOutside0X128;
-        feeGrowthBelow1X128 = lowerFeeGrowthOutside1X128;
+        feeGrowthBelow0X128 = lower.value2;
+        feeGrowthBelow1X128 = lower.value3;
     } else {
-        feeGrowthBelow0X128 = params.feeGrowthGlobal0X128.minus(lowerFeeGrowthOutside0X128);
-        feeGrowthBelow1X128 = params.feeGrowthGlobal1X128.minus(lowerFeeGrowthOutside1X128);
+        feeGrowthBelow0X128 = params.feeGrowthGlobal0X128.minus(lower.value2);
+        feeGrowthBelow1X128 = params.feeGrowthGlobal1X128.minus(lower.value3);
     }
 
     // calculate fee growth above
-    results = params.pool.ticks(params.tickUpper);
-    let upperFeeGrowthOutside0X128 = results.value2;
-    let upperFeeGrowthOutside1X128 = results.value3;
-
+    let upper = params.pool.ticks(params.tickUpper);
     let feeGrowthAbove0X128: BigInt;
     let feeGrowthAbove1X128: BigInt;
     if (params.tickCurrent < params.tickUpper) {
-        feeGrowthAbove0X128 = upperFeeGrowthOutside0X128;
-        feeGrowthAbove1X128 = upperFeeGrowthOutside1X128;
+        feeGrowthAbove0X128 = upper.value2;
+        feeGrowthAbove1X128 = upper.value3;
     } else {
-        feeGrowthAbove0X128 = params.feeGrowthGlobal0X128.minus(upperFeeGrowthOutside0X128);
-        feeGrowthAbove1X128 = params.feeGrowthGlobal1X128.minus(upperFeeGrowthOutside1X128);
+        feeGrowthAbove0X128 = params.feeGrowthGlobal0X128.minus(upper.value2);
+        feeGrowthAbove1X128 = params.feeGrowthGlobal1X128.minus(upper.value3);
     }
 
     feeGrowthInside0X128 = params.feeGrowthGlobal0X128.minus(feeGrowthBelow0X128).minus(feeGrowthAbove0X128);
     feeGrowthInside1X128 = params.feeGrowthGlobal1X128.minus(feeGrowthBelow1X128).minus(feeGrowthAbove1X128);
-
+    if (feeGrowthInside0X128.lt(ZERO_BI)) {
+        feeGrowthInside0X128 = BI_256_MAX.plus(feeGrowthInside0X128).plus(ONE_BI);
+    }
+    if (feeGrowthInside1X128.lt(ZERO_BI)) {
+        feeGrowthInside1X128 = BI_256_MAX.plus(feeGrowthInside1X128).plus(ONE_BI);
+    }
     return {feeGrowthInside0X128, feeGrowthInside1X128} as FeeGrowthInsides;
 }
 
 export class CalFeesParams {
+    sqrtPriceX96: BigInt;
     tickCurrent: i32;
     feeGrowthGlobal0X128: BigInt;
     feeGrowthGlobal1X128: BigInt;
@@ -305,6 +315,11 @@ export function calFeesOfPosition(params: CalFeesParams, position: Position, uni
     let feeGrowthInside0X128 = feeGrowthInside.feeGrowthInside0X128;
     let feeGrowthInside1X128 = feeGrowthInside.feeGrowthInside1X128;
 
+    //如果是0，保持最新的feeGrowthInside
+    if (position.feeGrowthInside0LastX128.equals(ZERO_BI)) {
+        position.feeGrowthInside0LastX128 = feeGrowthInside0X128;
+        position.feeGrowthInside1LastX128 = feeGrowthInside1X128;
+    }
     // calculate accumulated fees
     let amount0 = convertTokenToDecimal((feeGrowthInside0X128.minus(position.feeGrowthInside0LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals0);
     let amount1 = convertTokenToDecimal((feeGrowthInside1X128.minus(position.feeGrowthInside1LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals1);
@@ -338,29 +353,30 @@ export function calUniV3Position(params: CalFeesParams, position: Position, uniP
     let feesUSD = fees0.times(params.token0PriceUSD).plus(fees1.times(params.token1PriceUSD));
     let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
 
+    let tickLower = position.tickLower.toI32();
+    let tickUpper = position.tickUpper.toI32();
     let amount0 = ZERO_BD, amount1 = ZERO_BD;
-    let sqrtPriceX96 = getSqrtRatioAtTick(params.tickCurrent);
     // 计算流动性资产
-    if (params.tickCurrent < position.tickLower.toI32()) {
+    if (params.tickCurrent < tickLower) {
         // current tick is below the passed range; liquidity can only become in range by crossing from left to
         // right, when we'll need _more_ token0 (it's becoming more valuable) so user must provide it
         amount0 = convertTokenToDecimal(getAmount0Delta(
-            getSqrtRatioAtTick(position.tickLower.toI32()),
-            getSqrtRatioAtTick(position.tickUpper.toI32()),
+            getSqrtRatioAtTick(tickLower),
+            getSqrtRatioAtTick(tickUpper),
             uniV3Position.value0,
             true
         ), params.decimals0)
-    } else if (params.tickCurrent < position.tickUpper.toI32()) {
+    } else if (params.tickCurrent < tickUpper) {
         // current tick is inside the passed range
         amount0 = convertTokenToDecimal(getAmount0Delta(
-            sqrtPriceX96,
-            getSqrtRatioAtTick(position.tickUpper.toI32()),
+            params.sqrtPriceX96,
+            getSqrtRatioAtTick(tickUpper),
             uniV3Position.value0,
             true
         ), params.decimals0);
         amount1 = convertTokenToDecimal(getAmount1Delta(
-            getSqrtRatioAtTick(position.tickLower.toI32()),
-            sqrtPriceX96,
+            getSqrtRatioAtTick(tickLower),
+            params.sqrtPriceX96,
             uniV3Position.value0,
             true
         ), params.decimals1);
@@ -368,8 +384,8 @@ export function calUniV3Position(params: CalFeesParams, position: Position, uniP
         // current tick is above the passed range; liquidity can only become in range by crossing from right to
         // left, when we'll need _more_ token1 (it's becoming more valuable) so user must provide it
         amount1 = convertTokenToDecimal(getAmount1Delta(
-            getSqrtRatioAtTick(position.tickLower.toI32()),
-            getSqrtRatioAtTick(position.tickUpper.toI32()),
+            getSqrtRatioAtTick(tickLower),
+            getSqrtRatioAtTick(tickUpper),
             uniV3Position.value0,
             true
         ), params.decimals1);
@@ -383,9 +399,38 @@ export function calUniV3Position(params: CalFeesParams, position: Position, uniP
 
 function getSqrtRatioAtTick(tick: i32): BigInt {
     let val = 1.0001 ** tick;
-    return BigDecimal.fromString((val).toString())
-        .times(BigInt.fromI32(2).pow(192).toBigDecimal()).digits.sqrt()
+    return BigInt.fromString(BigDecimal.fromString((val).toString())
+        .times(BigInt.fromI32(2).pow(192).toBigDecimal()).toString()).sqrt()
 }
+
+// function getSqrtRatioAtTick(tick: i32): BigInt {
+//     let absTick = tick < 0 ? -tick : tick as number;
+//     let ratio = (absTick & 0x1) != 0 ? "0xfffcb933bd6fad37aa2d162d1a594001"
+//         : "0x100000000000000000000000000000000";
+//
+//     if (absTick & 0x2 != 0) ratio = (ratio.times("0xfff97272373d413259a46990580e213a")).rightShift(128);
+//     if (absTick & 0x4 != 0) ratio = (ratio.times("0xfff2e50f5f656932ef12357cf3c7fdcc")).rightShift(128);
+//     if (absTick & 0x8 != 0) ratio = (ratio.times("0xffe5caca7e10e4e61c3624eaa0941cd0")).rightShift(128);
+//     if (absTick & 0x10 != 0) ratio = (ratio.times("0xffcb9843d60f6159c9db58835c926644")).rightShift(128);
+//     if (absTick & 0x20 != 0) ratio = (ratio.times("0xff973b41fa98c081472e6896dfb254c0")).rightShift(128);
+//     if (absTick & 0x40 != 0) ratio = (ratio.times("0xff2ea16466c96a3843ec78b326b52861")).rightShift(128);
+//     if (absTick & 0x80 != 0) ratio = (ratio.times("0xfe5dee046a99a2a811c461f1969c3053")).rightShift(128);
+//     if (absTick & 0x100 != 0) ratio = (ratio.times("0xfcbe86c7900a88aedcffc83b479aa3a4")).rightShift(128);
+//     if (absTick & 0x200 != 0) ratio = (ratio.times("0xf987a7253ac413176f2b074cf7815e54")).rightShift(128);
+//     if (absTick & 0x400 != 0) ratio = (ratio.times("0xf3392b0822b70005940c7a398e4b70f3")).rightShift(128);
+//     if (absTick & 0x800 != 0) ratio = (ratio.times("0xe7159475a2c29b7443b29c7fa6e889d9")).rightShift(128);
+//     if (absTick & 0x1000 != 0) ratio = (ratio.times("0xd097f3bdfd2022b8845ad8f792aa5825")).rightShift(128);
+//     if (absTick & 0x2000 != 0) ratio = (ratio.times("0xa9f746462d870fdf8a65dc1f90e061e5")).rightShift(128);
+//     if (absTick & 0x4000 != 0) ratio = (ratio.times("0x70d869a156d2a1b890bb3df62baf32f7")).rightShift(128);
+//     if (absTick & 0x8000 != 0) ratio = (ratio.times("0x31be135f97d08fd981231505542fcfa6")).rightShift(128);
+//     if (absTick & 0x10000 != 0) ratio = (ratio.times("0x9aa508b5b7a84e1c677de54f3e99bc9")).rightShift(128);
+//     if (absTick & 0x20000 != 0) ratio = (ratio.times("0x5d6af8dedb81196699c329225ee604")).rightShift(128);
+//     if (absTick & 0x40000 != 0) ratio = (ratio.times("0x2216e584f5fa1ea926041bedfe98")).rightShift(128);
+//     if (absTick & 0x80000 != 0) ratio = (ratio.times("0x48a170391f7dc42444e8fa2")).rightShift(128);
+//
+//     if (tick > 0) ratio = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" / ratio;
+//     return ("0xffffffffffffffffffffffffffffffffffffffff") & ((ratio.rightShift(32)).plus((ratio.mod(ONE_BI.leftShift(32)).equals(ZERO_BI) ? ZERO_BI : ONE_BI)));
+// }
 
 function divRoundingUp(x: BigInt, y: BigInt): BigInt {
     return x.div(y).plus(x.mod(y).gt(ZERO_BI) ? ONE_BI : ZERO_BI);
@@ -441,11 +486,7 @@ function getAmount0Delta(
     liquidity: BigInt,
     isRemoveLP: boolean
 ): BigInt {
-    if (isRemoveLP) {
-        return getAmount0DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, false)
-    } else {
-        return getAmount0DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
-    }
+    return getAmount0DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, !isRemoveLP);
 }
 
 function getAmount1Delta(
@@ -454,9 +495,5 @@ function getAmount1Delta(
     liquidity: BigInt,
     isRemoveLP: boolean
 ): BigInt {
-    if (isRemoveLP) {
-        return getAmount1DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, false)
-    } else {
-        return getAmount1DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, true)
-    }
+    return getAmount1DeltaAmount(sqrtRatioAX96, sqrtRatioBX96, liquidity, !isRemoveLP);
 }
