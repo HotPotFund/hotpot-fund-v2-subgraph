@@ -17,7 +17,7 @@ export let ZERO_BD = BigDecimal.fromString('0');
 export let ONE_BD = BigDecimal.fromString('1');
 export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
-export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).leftShift(1).minus(ONE_BI);
+export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).minus(ONE_BI).leftShift(1).plus(ONE_BI);
 
 export let START_PROCESS_BLOCK = 12815965;
 // export let START_PROCESS_BLOCK = 10620320;//ropsten
