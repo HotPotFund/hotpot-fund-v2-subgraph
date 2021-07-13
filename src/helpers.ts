@@ -63,6 +63,15 @@ function getEthPriceInUSD(): BigDecimal {
         return ZERO_BD;
 }
 
+export function getAvailableUniV3Pool(tokenA: Address, tokenB: Address): Address {
+    let poolAddr = uniV3Factory.getPool(tokenA, tokenB, 500);
+    if (poolAddr.toHex() == ADDRESS_ZERO)
+        poolAddr = uniV3Factory.getPool(tokenA, tokenB, 3000);
+    if (poolAddr.toHex() == ADDRESS_ZERO)
+        poolAddr = uniV3Factory.getPool(tokenA, tokenB, 10000);
+    return poolAddr;
+}
+
 export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
     if (tokenEntity == null) return ZERO_BD;
 
@@ -71,7 +80,7 @@ export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
 
     let largestUSDLiquidity = ZERO_BD;
     let priceSoFar = ZERO_BD;
-    let ethPoolAddr = uniV3Factory.getPool(Address.fromString(tokenEntity.id), Address.fromString(WETH_ADDRESS), 3000);
+    let ethPoolAddr = getAvailableUniV3Pool(Address.fromString(tokenEntity.id), Address.fromString(WETH_ADDRESS));
     if (ethPoolAddr.toHex() != ADDRESS_ZERO) {
         let weth9 = ERC20.bind(Address.fromString(WETH_ADDRESS));
         largestUSDLiquidity = convertTokenToDecimal(weth9.balanceOf(ethPoolAddr), BI_18).times(ethUsdPrice);
@@ -94,7 +103,7 @@ export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
     for (let i = 0; i < STABLE_TOKENS.length; i++) {
         if (tokenEntity.id == STABLE_TOKENS[i]) return ONE_BD;
 
-        let poolAddress = uniV3Factory.getPool(Address.fromString(tokenEntity.id), Address.fromString(STABLE_TOKENS[i]), 3000);
+        let poolAddress = getAvailableUniV3Pool(Address.fromString(tokenEntity.id), Address.fromString(STABLE_TOKENS[i]));
         if (poolAddress.toHex() == ADDRESS_ZERO) continue;
 
         let uniV3Pool = UniV3Pool.bind(poolAddress);
