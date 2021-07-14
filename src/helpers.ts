@@ -1,5 +1,5 @@
 /* eslint-disable prefer-const */
-import {Address, BigDecimal, BigInt, Bytes, log} from '@graphprotocol/graph-ts'
+import {Address, BigDecimal, BigInt, Bytes} from '@graphprotocol/graph-ts'
 import {Position, Token} from "../generated/schema";
 
 import {UniV3Factory} from "../generated/Controller/UniV3Factory";
@@ -248,7 +248,6 @@ export function getFeeGrowthInside(params: FeeGrowthInsideParams): FeeGrowthInsi
     let feeGrowthInside0X128: BigInt;
     let feeGrowthInside1X128: BigInt;
 
-    // log.debug('GrowthInside tickLower:{}, tickUpper:{}, tickCurrent:{}', [params.tickLower.toString(), params.tickUpper.toString(), params.tickCurrent.toString()]);
     // calculate fee growth below
     let lower = params.pool.ticks(params.tickLower);
     let feeGrowthBelow0X128: BigInt;
