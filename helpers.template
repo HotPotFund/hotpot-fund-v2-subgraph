@@ -19,16 +19,16 @@ export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
 export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).minus(ONE_BI).leftShift(1).plus(ONE_BI);
 
-export let START_PROCESS_BLOCK = 12815965;
-export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
-const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';
+export let START_PROCESS_BLOCK = {{startProcessBlock}};
+export const WETH_ADDRESS = '{{wethAddress}}';
+const USDC_WETH_03_POOL = '{{usdcEth03Pool}}';
 
 // token where amounts should contribute to tracked volume and liquidity
 export let STABLE_TOKENS: string[] = [
-    '0x6b175474e89094c44da98b954eedeac495271d0f', // DAI
-    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // USDC
-    '0xdac17f958d2ee523a2206206994597c13d831ec7', // USDT
-    '0x0000000000085d4780b73119b644ae5ecd22b376', // TUSD
+    '{{daiAddress}}', // DAI
+    '{{usdcAddress}}', // USDC
+    '{{usdtAddress}}', // USDT
+    '{{tusdAddress}}', // TUSD
 ];
 
 export const UNI_V3_FACTORY_ADDRESS = '0x1f98431c8ad98523631ae4a59f267346ea31f984';

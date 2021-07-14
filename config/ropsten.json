@@ -1,0 +1,14 @@
+{
+  "network": "ropsten",
+  "ctrlAddress": "0x42895aef2ec9c3d8e64249688140751e8336c29e",
+  "ctrlStartBlock": 10369130,
+  "factoryAddress": "0xe1b8e0256c48c2ded3f6832ab213e0f4412b34eb",
+  "factoryStartBlock": 10369130,
+  "startProcessBlock": 10620320,
+  "wethAddress": "0xc778417e063141139fce010982780140aa0cd5ab",
+  "usdcEth03Pool": "0x35a23a79310d3cabd81bdf0df75f39afb51560f5",
+  "daiAddress": "0x46ea852f836fd93afdd80e8af2fcbd70b73044a6",
+  "usdcAddress": "0x74945623f947b0a8764cd365d3a4784e7d91c8e4",
+  "usdtAddress": "0x1465fff54d9d746601845ca2762a0111671cc830",
+  "tusdAddress": "0x722abbe70fb536d12e3506b6b062813f8b8b7b04"
+}
