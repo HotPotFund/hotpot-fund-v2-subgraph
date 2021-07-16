@@ -8,7 +8,7 @@ dataSources:
     source:
       address: "0xe73C8dec3a2d03CdC12845Eb6e358D0541EF1e14"
       abi: Controller
-      startBlock: 12835112
+      startBlock: 12803079
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
