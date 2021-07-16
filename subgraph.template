@@ -8,7 +8,7 @@ dataSources:
     source:
       address: "{{ctrlAddress}}"
       abi: Controller
-      startBlock: {{ctrlStartBlock}}
+      startBlock: {{ctrlCreatedBlock}}
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -60,7 +60,7 @@ dataSources:
     source:
       address: "{{factoryAddress}}"
       abi: Factory
-      startBlock: {{factoryStartBlock}}
+      startBlock: {{factoryCreatedBlock}}
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4

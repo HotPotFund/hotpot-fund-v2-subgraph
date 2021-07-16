@@ -320,8 +320,12 @@ export function calFeesOfPosition(params: CalFeesParams, position: Position, uni
         position.feeGrowthInside1LastX128 = feeGrowthInside1X128;
     }
     // calculate accumulated fees
-    let amount0 = convertTokenToDecimal((feeGrowthInside0X128.minus(position.feeGrowthInside0LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals0);
-    let amount1 = convertTokenToDecimal((feeGrowthInside1X128.minus(position.feeGrowthInside1LastX128)).times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals1);
+    let subVal0 = feeGrowthInside0X128.minus(position.feeGrowthInside0LastX128);
+    let subVal1 = feeGrowthInside1X128.minus(position.feeGrowthInside1LastX128);
+    if (subVal0.lt(ZERO_BI)) subVal0 = BI_256_MAX.plus(subVal0).plus(ONE_BI);
+    if (subVal1.lt(ZERO_BI)) subVal1 = BI_256_MAX.plus(subVal1).plus(ONE_BI);
+    let amount0 = convertTokenToDecimal(subVal0.times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals0);
+    let amount1 = convertTokenToDecimal(subVal1.times(position.liquidity).div(FixedPoint_Q128_BI), params.decimals1);
 
     let feesUSD = amount0.times(params.token0PriceUSD).plus(amount1.times(params.token1PriceUSD));
     // let fees = params.fundTokenPriceUSD.gt(ZERO_BD) ? feesUSD.div(params.fundTokenPriceUSD) : ZERO_BD;
@@ -343,8 +347,12 @@ export class UniV3Position {
 export function calUniV3Position(params: CalFeesParams, position: Position, uniPool: UniV3Pool): UniV3Position {
     let uniV3Position = uniPool.positions(position.positionKey);
     // calculate accumulated fees
-    let fees0 = convertTokenToDecimal((position.feeGrowthInside0LastX128.minus(uniV3Position.value1)).times(uniV3Position.value0).div(FixedPoint_Q128_BI), params.decimals0);
-    let fees1 = convertTokenToDecimal((position.feeGrowthInside1LastX128.minus(uniV3Position.value2)).times(uniV3Position.value0).div(FixedPoint_Q128_BI), params.decimals1);
+    let subVal0 = position.feeGrowthInside0LastX128.minus(uniV3Position.value1);
+    let subVal1 = position.feeGrowthInside1LastX128.minus(uniV3Position.value2);
+    if (subVal0.lt(ZERO_BI)) subVal0 = BI_256_MAX.plus(subVal0).plus(ONE_BI);
+    if (subVal1.lt(ZERO_BI)) subVal1 = BI_256_MAX.plus(subVal1).plus(ONE_BI);
+    let fees0 = convertTokenToDecimal((subVal0).times(uniV3Position.value0).div(FixedPoint_Q128_BI), params.decimals0);
+    let fees1 = convertTokenToDecimal((subVal1).times(uniV3Position.value0).div(FixedPoint_Q128_BI), params.decimals1);
 
     fees0 = fees0.plus(convertTokenToDecimal(uniV3Position.value3, params.decimals0));
     fees1 = fees1.plus(convertTokenToDecimal(uniV3Position.value4, params.decimals1));
