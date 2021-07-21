@@ -375,12 +375,11 @@ export function handleInit(call: InitCall): void {
 
     let poolAddress = uniV3Factory.getPool(call.inputs.token0, call.inputs.token1, call.inputs.fee);
     let uniV3Pool = UniV3Pool.bind(poolAddress);
-    let fundPoolsLength = fund.poolsLength();//实际长度
     let poolIndex = fundEntity.poolsLength.toI32();//lasted的长度
     let pool: Pool;
     //new pool
-    if (fundPoolsLength.gt(fundEntity.poolsLength)) {
-        fundEntity.poolsLength = fundPoolsLength;
+    if ((fund.poolsLength()).gt(fundEntity.poolsLength)) {
+        fundEntity.poolsLength = fundEntity.poolsLength.plus(ONE_BI);
         pool = new Pool(call.inputs.fund.toHex() + '-' + poolIndex.toString());
         pool.fund = initTx.fund;
         pool.address = poolAddress;
@@ -394,7 +393,8 @@ export function handleInit(call: InitCall): void {
         while (true) {
             poolIndex--;
             pool = Pool.load(call.inputs.fund.toHex() + '-' + poolIndex.toString()) as Pool;
-            if (pool != null || poolIndex == 0) break;
+            if (pool.address == poolAddress) break;
+            if (poolIndex == 0) return;
         }
     }
     let positionIndex = pool.positionsLength;

@@ -6,9 +6,9 @@ dataSources:
     name: Controller
     network: mainnet
     source:
-      address: "0xe73C8dec3a2d03CdC12845Eb6e358D0541EF1e14"
+      address: "0xe366d53F07af38cE012aeA484747E40D513d000E"
       abi: Controller
-      startBlock: 12803079
+      startBlock: 12848896
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -58,9 +58,9 @@ dataSources:
     name: Factory
     network: mainnet
     source:
-      address: "0xf8f9577D43a1049Db0CD20cAfe77C39cF421c8E7"
+      address: "0xc2D232A140a5B308295d5F7F84f5Ec6f02d42fFC"
       abi: Factory
-      startBlock: 12803107
+      startBlock: 12849564
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
