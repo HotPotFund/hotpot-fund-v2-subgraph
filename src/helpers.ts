@@ -3,7 +3,7 @@ import {Address, BigDecimal, BigInt, Bytes} from '@graphprotocol/graph-ts'
 import {Position, Token} from "../generated/schema";
 
 import {UniV3Factory} from "../generated/Controller/UniV3Factory";
-import {UniV3Pool} from "../generated/Controller/UniV3Pool";
+import {UniV3Pool, UniV3Pool__positionsResult} from "../generated/Controller/UniV3Pool";
 import {ERC20} from "../generated/Controller/ERC20";
 import {ERC20SymbolBytes} from "../generated/Controller/ERC20SymbolBytes";
 import {ERC20NameBytes} from "../generated/Controller/ERC20NameBytes";
@@ -19,7 +19,7 @@ export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
 export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).minus(ONE_BI).leftShift(1).plus(ONE_BI);
 
-export let START_PROCESS_BLOCK = 12866942;
+export let START_PROCESS_BLOCK = 12971716;
 export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';
 
@@ -301,18 +301,25 @@ export class FeesOfPosition {
     feeGrowthInside1X128: BigInt;
 }
 
-export function calFeesOfPosition(params: CalFeesParams, position: Position, uniPool: UniV3Pool): FeesOfPosition {
-    // get global feeGrowthInside
-    let feeGrowthInside = getFeeGrowthInside({
-        pool: uniPool,
-        tickLower: position.tickLower.toI32(),
-        tickUpper: position.tickUpper.toI32(),
-        tickCurrent: params.tickCurrent,
-        feeGrowthGlobal0X128: params.feeGrowthGlobal0X128,
-        feeGrowthGlobal1X128: params.feeGrowthGlobal1X128
-    });
-    let feeGrowthInside0X128 = feeGrowthInside.feeGrowthInside0X128;
-    let feeGrowthInside1X128 = feeGrowthInside.feeGrowthInside1X128;
+export function calFeesOfPosition(params: CalFeesParams, position: Position, uniPool: UniV3Pool, uniV3Position: UniV3Pool__positionsResult): FeesOfPosition {
+    let feeGrowthInside0X128 = ZERO_BI;
+    let feeGrowthInside1X128 = ZERO_BI;
+    if (uniV3Position.value0.equals(ZERO_BI)) {
+        feeGrowthInside0X128 = uniV3Position.value1;
+        feeGrowthInside1X128 = uniV3Position.value2;
+    } else {
+        // get global feeGrowthInside
+        let feeGrowthInside = getFeeGrowthInside({
+            pool: uniPool,
+            tickLower: position.tickLower.toI32(),
+            tickUpper: position.tickUpper.toI32(),
+            tickCurrent: params.tickCurrent,
+            feeGrowthGlobal0X128: params.feeGrowthGlobal0X128,
+            feeGrowthGlobal1X128: params.feeGrowthGlobal1X128
+        });
+        feeGrowthInside0X128 = feeGrowthInside.feeGrowthInside0X128;
+        feeGrowthInside1X128 = feeGrowthInside.feeGrowthInside1X128;
+    }
 
     //如果是0，保持最新的feeGrowthInside
     if (position.feeGrowthInside0LastX128.equals(ZERO_BI)) {
@@ -344,8 +351,11 @@ export class UniV3Position {
     amountUSD: BigDecimal;
 }
 
-export function calUniV3Position(params: CalFeesParams, position: Position, uniPool: UniV3Pool): UniV3Position {
-    let uniV3Position = uniPool.positions(position.positionKey);
+export function calUniV3Position(params: CalFeesParams, position: Position, uniV3Position: UniV3Pool__positionsResult): UniV3Position {
+    if (uniV3Position.value0.equals(ZERO_BI)) return {
+        fees0: ZERO_BD, fees1: ZERO_BD, fees: ZERO_BD, feesUSD: ZERO_BD,
+        amount0: ZERO_BD, amount1: ZERO_BD, amount: ZERO_BD, amountUSD: ZERO_BD
+    };
     // calculate accumulated fees
     let subVal0 = position.feeGrowthInside0LastX128.minus(uniV3Position.value1);
     let subVal1 = position.feeGrowthInside1LastX128.minus(uniV3Position.value2);

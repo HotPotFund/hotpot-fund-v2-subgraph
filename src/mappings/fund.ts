@@ -235,7 +235,6 @@ export function handleWithdraw(event: WithdrawEvent): void {
     let investorDeltaFees = lastedSettlementPrice.minus(investor.lastedSettlementPrice).times(investorLastedShare);
     let withdrawFees = lastedSettlementPrice.minus(investor.lastedSettlementPrice).times(withdrewShare)
         .plus(investor.totalPendingFees.times(withdrewShare).div(investorLastedShare.gt(ZERO_BD) ? investorLastedShare : ZERO_BD));
-    let withdrawUSD = investorLastedShare.gt(ZERO_BD) ? withdrewShare.times(investor.totalInvestmentUSD).div(investorLastedShare) : ZERO_BD;
 
     investor.lastedSettlementPrice = lastedSettlementPrice;
     investor.totalFees = investor.totalFees.plus(investorDeltaFees);
@@ -243,9 +242,13 @@ export function handleWithdraw(event: WithdrawEvent): void {
     investor.totalWithdrewFees = investor.totalFees.plus(investor.totalPendingFees);
 
     investor.share = investor.share.minus(event.params.share);
+    let totalInvestmentLasted = investor.totalInvestment;
     investor.totalInvestment = convertTokenToDecimal(fund.investmentOf(event.params.owner), fundTokenEntity.decimals);
-    investor.totalInvestmentUSD = investor.totalInvestmentUSD.minus(withdrawUSD);
-    investorSummary.totalInvestmentUSD = investorSummary.totalInvestmentUSD.minus(withdrawUSD);
+    let withdrawInvestment = totalInvestmentLasted.minus(investor.totalInvestment);
+    let withdrawInvestmentUSD = totalInvestmentLasted.gt(ZERO_BD) ? withdrawInvestment.times(investor.totalInvestmentUSD).div(totalInvestmentLasted):ZERO_BD;
+
+    investor.totalInvestmentUSD = investor.totalInvestmentUSD.minus(withdrawInvestmentUSD);
+    investorSummary.totalInvestmentUSD = investorSummary.totalInvestmentUSD.minus(withdrawInvestmentUSD);
     // investor.totalDepositedAmount = investor.totalDepositedAmount;
     investor.totalWithdrewAmount = investor.totalWithdrewAmount.plus(withdrawTx.amount);
     investor.totalWithdrewAmountUSD = investor.totalWithdrewAmountUSD.plus(withdrawTx.amountUSD);
@@ -254,20 +257,20 @@ export function handleWithdraw(event: WithdrawEvent): void {
     fundEntity.totalFees = fundEntity.totalFees.plus(deltaFees);
     fundEntity.totalPendingFees = fundEntity.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     fundEntity.totalWithdrewFees = fundEntity.totalFees.minus(fundEntity.totalPendingFees);
-    fundEntity.totalInvestmentUSD = fundEntity.totalInvestmentUSD.minus(withdrawUSD);
+    fundEntity.totalInvestmentUSD = fundEntity.totalInvestmentUSD.minus(withdrawInvestmentUSD);
     fundEntity.totalWithdrewAmountUSD = fundEntity.totalWithdrewAmountUSD.plus(withdrawTx.amountUSD);
     let fundSummary = FundSummary.load("1");
     fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
     fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     fundSummary.totalWithdrewFees = fundSummary.totalFees.minus(fundSummary.totalPendingFees);
-    fundSummary.totalInvestmentUSD = fundSummary.totalInvestmentUSD.minus(withdrawUSD);
+    fundSummary.totalInvestmentUSD = fundSummary.totalInvestmentUSD.minus(withdrawInvestmentUSD);
     fundSummary.totalAssetsUSD = fundSummary.totalAssetsUSD.minus(withdrawTx.amountUSD);
 
     let manager = Manager.load(fundEntity.manager);
     manager.totalFees = manager.totalFees.plus(deltaFees);
     manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     manager.totalWithdrewFees = manager.totalFees.minus(manager.totalPendingFees);
-    manager.totalInvestmentUSD = manager.totalInvestmentUSD.minus(withdrawUSD);
+    manager.totalInvestmentUSD = manager.totalInvestmentUSD.minus(withdrawInvestmentUSD);
     manager.totalAssetsUSD = manager.totalAssetsUSD.minus(withdrawTx.amountUSD);
 
     withdrawTx.save();

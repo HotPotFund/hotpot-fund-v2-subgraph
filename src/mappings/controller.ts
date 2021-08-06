@@ -93,7 +93,9 @@ export function updateFundPools(fundEntity: Fund,
 
         for (let positionIndex = 0; positionIndex < pool.positionsLength.toI32(); positionIndex++) {
             let position = Position.load(fundEntity.id + "-" + poolIndex.toString() + "-" + positionIndex.toString()) as Position;
-            let results = calFeesOfPosition(params, position, uniV3Pool);
+            let positionOfUniV3 = uniV3Pool.positions(position.positionKey);
+            if(positionOfUniV3.value0.equals(ZERO_BI) && position.isEmpty) continue;
+            let results = calFeesOfPosition(params, position, uniV3Pool, positionOfUniV3);
             deltaFees = deltaFees.plus(results.fees);
             position.liquidity = uniV3Pool.positions(position.positionKey).value0;
             position.isEmpty = !position.liquidity.gt(ZERO_BI);
@@ -102,7 +104,7 @@ export function updateFundPools(fundEntity: Fund,
             position.assetAmount = convertTokenToDecimal(fund.assetsOfPosition(BigInt.fromI32(poolIndex), BigInt.fromI32(positionIndex)), fundTokenEntity.decimals);
             position.assetAmountUSD = position.assetAmount.times(fundTokenPriceUSD);
             position.assetShare = fundEntity.totalAssets.gt(ZERO_BD) ? position.assetAmount.div(fundEntity.totalAssets) : ZERO_BD;
-            let uniV3Position = calUniV3Position(params, position, uniV3Pool);
+            let uniV3Position = calUniV3Position(params, position, positionOfUniV3);
             position.amount = uniV3Position.amount;
             position.amountUSD = uniV3Position.amountUSD;
             position.amount0 = uniV3Position.amount0;
