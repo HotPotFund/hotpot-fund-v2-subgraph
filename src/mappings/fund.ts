@@ -46,6 +46,7 @@ export function handleTransfer(event: Transfer): void {
     fromInvestor.totalWithdrewFees = fromInvestor.totalFees.minus(fromInvestor.totalPendingFees);
 
     fromInvestor.share = fromInvestor.share.minus(event.params.value);
+    // @ts-ignore
     updateInvestorDayData(event as DepositEvent, fromInvestor, fromInvestorLastedShare);
 
     //结算toInvestor
@@ -57,6 +58,7 @@ export function handleTransfer(event: Transfer): void {
     toInvestor.totalPendingFees = fromInvestor.totalPendingFees.plus(toInvestorFees);
 
     toInvestor.share = fromInvestor.share.plus(event.params.value);
+    // @ts-ignore
     updateInvestorDayData(event as DepositEvent, toInvestor, toInvestorLastedShare);
 
     fundEntity.lastedSettlementPrice = lastedSettlementPrice;

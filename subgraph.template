@@ -36,11 +36,17 @@ dataSources:
       eventHandlers:
         - event: ChangeVerifiedToken(indexed address,bool)
           handler: handleChangeVerifiedToken
-        - event: Harvest(address,uint256,uint256)
+        - event: Harvest(indexed address,uint256,uint256)
           handler: handleHarvest
-      callHandlers:
-        - function: setPath(address,address,bytes)
+        - event: SetHarvestPath(indexed address,bytes)
+          handler: handleSetHarvestPath
+        - event: SetGovernance(indexed address)
+          handler: handleSetGovernance
+        - event: SetMaxHarvestSlippage(uint256)
+          handler: handleSetMaxHarvestSlippage
+        - event: SetPath(indexed address,indexed address,bytes)
           handler: handleSetPath
+      callHandlers:
         - function: init(address,address,address,uint24,int24,int24,uint256)
           handler: handleInit
         - function: add(address,uint256,uint256,uint256,bool)
@@ -49,8 +55,6 @@ dataSources:
           handler: handleSub
         - function: move(address,uint256,uint256,uint256,uint256)
           handler: handleMove
-        - function: setHarvestPath(address,bytes)
-          handler: handleSetHarvestPath
       blockHandlers:
         - handler: handleBlock
       file: ./src/mappings/controller.ts

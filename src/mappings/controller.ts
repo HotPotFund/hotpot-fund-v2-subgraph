@@ -4,11 +4,10 @@ import {
     AddCall,
     ChangeVerifiedToken,
     Harvest,
+    SetHarvestPath,
     InitCall,
     MoveCall,
-    SetHarvestPathCall,
-    SetPathCall,
-    SubCall,
+    SubCall, SetGovernance, SetMaxHarvestSlippage, SetPath,
 } from "../../generated/Controller/Controller";
 import {ERC20} from "../../generated/Controller/ERC20";
 import {UniV3Pool} from "../../generated/Controller/UniV3Pool";
@@ -58,17 +57,22 @@ import {Address} from "@graphprotocol/graph-ts/index";
 import {Fund as FundContract} from "../../generated/templates/Fund/Fund";
 import {updateFundDayData} from "./dayUpdates";
 
-
+/**
+ * 这里比较耗时间，会变量基金下的所有pool和所有头寸，并更新它们的状态
+ * @param fundEntity
+ * @param fundTokenEntity
+ * @param fund
+ */
 export function updateFundPools(fundEntity: Fund,
                                 fundTokenEntity: Token,
                                 fund: FundContract): BigDecimal {
     let deltaFees = ZERO_BD;
+    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
     for (let poolIndex = 0; poolIndex < fundEntity.poolsLength.toI32(); poolIndex++) {
         let pool = Pool.load(fundEntity.id + "-" + poolIndex.toString()) as Pool;
         let uniV3Pool = UniV3Pool.bind(Address.fromString(pool.address.toHex()));
         let token0Entity = Token.load(pool.token0) as Token;
         let token1Entity = Token.load(pool.token1) as Token;
-        let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
         let slot0 = uniV3Pool.slot0();
         let params: CalFeesParams = {
             sqrtPriceX96: slot0.value0,
@@ -94,7 +98,8 @@ export function updateFundPools(fundEntity: Fund,
         for (let positionIndex = 0; positionIndex < pool.positionsLength.toI32(); positionIndex++) {
             let position = Position.load(fundEntity.id + "-" + poolIndex.toString() + "-" + positionIndex.toString()) as Position;
             let positionOfUniV3 = uniV3Pool.positions(position.positionKey);
-            if(positionOfUniV3.value0.equals(ZERO_BI) && position.isEmpty) continue;
+            // 如果当前头寸和历史状态都为空，就直接返回
+            if (positionOfUniV3.value0.equals(ZERO_BI) && position.isEmpty) continue;
             let results = calFeesOfPosition(params, position, uniV3Pool, positionOfUniV3);
             deltaFees = deltaFees.plus(results.fees);
             position.liquidity = uniV3Pool.positions(position.positionKey).value0;
@@ -129,13 +134,11 @@ export function syncFundStatusData(fundEntity: Fund,
                                    fundTokenEntity: Token,
                                    fund: FundContract,
                                    fundTokenPriceUSD: BigDecimal = null): void {
+    // 基金本币余额
     fundEntity.balance = convertTokenToDecimal(ERC20.bind(Address.fromString(fundEntity.fundToken)).balanceOf(fund._address), fundTokenEntity.decimals);
     fundEntity.totalAssets = convertTokenToDecimal(fund.totalAssets(), fundTokenEntity.decimals);
-    if (fundTokenPriceUSD != null) {//提升性能
-        fundEntity.totalAssetsUSD = fundTokenPriceUSD.times(fundEntity.totalAssets);
-    } else {
-        fundEntity.totalAssetsUSD = getTokenPriceUSD(fundTokenEntity).times(fundEntity.totalAssets);
-    }
+    if (fundTokenPriceUSD == null) fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
+    fundEntity.totalAssetsUSD = fundTokenPriceUSD.times(fundEntity.totalAssets);
 }
 
 export function syncTxStatusData(txEntity: Transaction, call: ethereum.Call): void {
@@ -215,8 +218,8 @@ export function handleHarvest(event: Harvest): void {
     harvestSummary.save();
 }
 
-export function handleSetHarvestPath(call: SetHarvestPathCall): void {
-    let address = call.inputs.token;
+export function handleSetHarvestPath(event: SetHarvestPath): void {
+    let address = event.params.token;
     let token = Token.load(address.toHex());
     if (token === null) {
         token = new Token(address.toHex());
@@ -232,29 +235,30 @@ export function handleSetHarvestPath(call: SetHarvestPathCall): void {
         }
         token.decimals = decimals;
     }
-    token.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(address, call.to), token.decimals);
+    token.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(address, event.address), token.decimals);
 
-    let txId = call.transaction.hash.toHex();
+    let txId = event.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);
     let id = txId + "-" + BigInt.fromI32(transaction.setHarvestPaths.length).toString();
     transaction.setHarvestPaths = transaction.setHarvestPaths.concat([id]);
-    syncTxStatusData(transaction as Transaction, call);
+    syncTxStatusDataWithEvent(transaction as Transaction, event);
     token.setHarvestPathTx = id;
     token.save();
 
     let setPathTx = new SetHarvestPathTx(id);
     setPathTx.transaction = txId;
-    setPathTx.distToken = call.inputs.token.toHex();
-    setPathTx.path = call.inputs.path;
+    setPathTx.distToken = event.params.token.toHex();
+    setPathTx.path = event.params.path;
 
     let pathPools = setPathTx.pathPools || [];
     pathPools.splice(0, pathPools.length);
     let count = 0;
-    let data = call.inputs.path.toHex().substr(2);
+    let data = event.params.path.toHex().substr(2);
     do {
-        let pathPoolId = call.to.toHex() + "-" + call.inputs.token.toHex() + count.toString();
+        let pathPoolId = event.address.toHex() + "-" + event.params.token.toHex() + count.toString();
         let pathPool = PathPool.load(pathPoolId) || new PathPool(pathPoolId);
         pathPool.tokenIn = '0x' + data.substr(0, 40);
+        // @ts-ignore
         pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
         pathPool.tokenOut = '0x' + data.substr(46, 40);
         pathPool.address = uniV3Factory.getPool(Address.fromString(pathPool.tokenIn), Address.fromString(pathPool.tokenOut), pathPool.fee);
@@ -269,19 +273,27 @@ export function handleSetHarvestPath(call: SetHarvestPathCall): void {
     transaction.save();
 }
 
-export function handleSetPath(call: SetPathCall): void {
-    let txId = call.transaction.hash.toHex();
+export function handleSetGovernance(event: SetGovernance): void {
+
+}
+
+export function handleSetMaxHarvestSlippage(event: SetMaxHarvestSlippage): void {
+
+}
+
+export function handleSetPath(event: SetPath): void {
+    let txId = event.transaction.hash.toHex();
     let transaction = Transaction.load(txId) || new Transaction(txId);
     let id = txId + "-" + BigInt.fromI32(transaction.setPaths.length).toString();
     transaction.setPaths = transaction.setPaths.concat([id]);
-    transaction.fund = call.inputs.fund.toHex();
-    syncTxStatusData(transaction as Transaction, call);
+    transaction.fund = event.params.fund.toHex();
+    syncTxStatusDataWithEvent(transaction as Transaction, event);
 
     let setPathTx = new SetPathTx(id);
     setPathTx.transaction = txId;
-    setPathTx.fund = call.inputs.fund.toHex();
-    setPathTx.distToken = call.inputs.distToken.toHex();
-    let pathId = call.inputs.fund.toHex() + "-" + call.inputs.distToken.toHex();
+    setPathTx.fund = event.params.fund.toHex();
+    setPathTx.distToken = event.params.distToken.toHex();
+    let pathId = event.params.fund.toHex() + "-" + event.params.distToken.toHex();
     setPathTx.path = pathId;
 
     let path = Path.load(pathId);
@@ -291,15 +303,16 @@ export function handleSetPath(call: SetPathCall): void {
         path.distToken = setPathTx.distToken;
     }
 
-    path.path = call.inputs.path;
+    path.path = event.params.path;
     let pathPools = path.pathPools || [];
     pathPools.splice(0, pathPools.length);
     let count = 0;
-    let data = call.inputs.path.toHex().substr(2);
+    let data = event.params.path.toHex().substr(2);
     do {
-        let pathPoolId = call.inputs.fund.toHex() + "-" + call.inputs.distToken.toHex() + count.toString();
+        let pathPoolId = event.params.fund.toHex() + "-" + event.params.distToken.toHex() + count.toString();
         let pathPool = PathPool.load(pathPoolId) || new PathPool(pathPoolId);
         pathPool.tokenIn = '0x' + data.substr(0, 40);
+        // @ts-ignore
         pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
         pathPool.tokenOut = '0x' + data.substr(46, 40);
         pathPool.address = uniV3Factory.getPool(Address.fromString(pathPool.tokenIn), Address.fromString(pathPool.tokenOut), pathPool.fee);
@@ -320,9 +333,9 @@ function updateFees(block: ethereum.Block,
                     fundTokenEntity: Token,
                     fund: FundContract,
                     fundTokenPriceUSD: BigDecimal = null,
-                    isSaveSummary: boolean = true): void {
+                    isSaveSummary: boolean = true,
+                    fundSummary: FundSummary = null): void {
     syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
-    let fundSummary = FundSummary.load("1") as FundSummary;
     let manager = Manager.load(fundEntity.manager) as Manager;
 
     let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund);
@@ -332,12 +345,15 @@ function updateFees(block: ethereum.Block,
     fundEntity.lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(sharePrice);
     fundEntity.totalFees = fundEntity.totalFees.plus(deltaFees);
     fundEntity.totalPendingFees = fundEntity.totalPendingFees.plus(deltaFees);
-    fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
-    fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees);
     manager.totalFees = manager.totalFees.plus(deltaFees);
     manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees);
     updateFundDayData(block, fundEntity, totalShare);
 
+    if (fundSummary != null || isSaveSummary) {
+        fundSummary = fundSummary || FundSummary.load("1") as FundSummary;
+        fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
+        fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees);
+    }
     if (isSaveSummary) {
         fundSummary.save();
     } else {
@@ -545,7 +561,7 @@ export function handleBlock(block: ethereum.Block): void {
         if (block.number.mod(BigInt.fromI32(4 * 4)).notEqual(ZERO_BI)) return;
     }
 
-    let fundSummary = FundSummary.load("1");
+    let fundSummary = FundSummary.load("1") as FundSummary;
     if (fundSummary == null) return;
     let funds = fundSummary.funds as Array<string>;
 
@@ -554,7 +570,7 @@ export function handleBlock(block: ethereum.Block): void {
         let fundEntity = Fund.load(funds[i]) as Fund;
         let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
         let fund = FundContract.bind(Address.fromString(funds[i]));
-        updateFees(block, fundEntity, fundTokenEntity, fund, null, false);
+        updateFees(block, fundEntity, fundTokenEntity, fund, null, false, fundSummary);
         totalAssetsUSD = totalAssetsUSD.plus(fundEntity.totalAssetsUSD);
         fundEntity.save();
     }
