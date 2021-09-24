@@ -5,6 +5,7 @@
   "factoryAddress": "0xb62d9bb4b495beb40d7c40c152fc68d4625ad332",
   "factoryCreatedBlock": 11095727,
   "startProcessBlock": 11095727,
+  "hptAddress": "0x352e792fb99f20adeccb20aff0695e76349a2925",
   "wethAddress": "0xc778417e063141139fce010982780140aa0cd5ab",
   "usdcEth03Pool": "0x35a23a79310d3cabd81bdf0df75f39afb51560f5",
   "daiAddress": "0x46ea852f836fd93afdd80e8af2fcbd70b73044a6",

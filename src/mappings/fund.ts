@@ -18,10 +18,23 @@ import {
 } from "../../generated/templates/Fund/Fund";
 import {syncFundStatusData, syncTxStatusDataWithEvent, updateFundPools} from "./controller";
 import {updateFundDayData, updateInvestorDayData} from "./dayUpdates";
-import {ADDRESS_ZERO, convertTokenToDecimal, getTokenPriceUSD, ZERO_BD, ZERO_BI} from "../helpers";
+import {ADDRESS_ZERO, convertTokenToDecimal, getTokenPriceUSD, HPT_ADDRESS, ZERO_BD, ZERO_BI} from "../helpers";
+import {StakingRewards} from "../../generated/templates/Fund/StakingRewards";
 
+
+function isStakingTransfer(addr: Address, fundAddr: Address): StakingRewards {
+    let stakingRewards = StakingRewards.bind(addr);
+    let result = stakingRewards.try_stakingToken();
+    if (result.reverted || result.value.toHexString() != fundAddr.toHexString()) return null;
+
+    result = stakingRewards.try_rewardsToken();
+    if (result.reverted || result.value.toHexString() != HPT_ADDRESS) return null;
+
+    return stakingRewards;
+}
 
 export function handleTransfer(event: Transfer): void {
+    // 如果是mint, burn操作
     if (event.params.from.toHexString() == ADDRESS_ZERO || event.params.to.toHexString() == ADDRESS_ZERO) return;
 
     let fundEntity = Fund.load(event.address.toHex()) as Fund;
@@ -46,6 +59,9 @@ export function handleTransfer(event: Transfer): void {
     fromInvestor.totalWithdrewFees = fromInvestor.totalFees.minus(fromInvestor.totalPendingFees);
 
     fromInvestor.share = fromInvestor.share.minus(event.params.value);
+    //如果接收者是挖矿合约，做抵押操作
+    if (isStakingTransfer(event.params.to, event.address) != null)
+        fromInvestor.stakingShare = fromInvestor.stakingShare.plus(event.params.value);
     // @ts-ignore
     updateInvestorDayData(event as DepositEvent, fromInvestor, fromInvestorLastedShare);
 
@@ -54,10 +70,13 @@ export function handleTransfer(event: Transfer): void {
     let toInvestorLastedShare = convertTokenToDecimal(toInvestor.share, fundEntity.decimals);
     let toInvestorFees = lastedSettlementPrice.minus(toInvestor.lastedSettlementPrice).times(toInvestorLastedShare);
     toInvestor.lastedSettlementPrice = lastedSettlementPrice;
-    toInvestor.totalFees = fromInvestor.totalFees.plus(toInvestorFees);
-    toInvestor.totalPendingFees = fromInvestor.totalPendingFees.plus(toInvestorFees);
+    toInvestor.totalFees = toInvestor.totalFees.plus(toInvestorFees);
+    toInvestor.totalPendingFees = toInvestor.totalPendingFees.plus(toInvestorFees);
 
-    toInvestor.share = fromInvestor.share.plus(event.params.value);
+    toInvestor.share = toInvestor.share.plus(event.params.value);
+    // 发起者设挖矿合约，做提取操作
+    if (isStakingTransfer(event.params.from, event.address) != null)
+        toInvestor.stakingShare = toInvestor.stakingShare.minus(event.params.value);
     // @ts-ignore
     updateInvestorDayData(event as DepositEvent, toInvestor, toInvestorLastedShare);
 
@@ -94,6 +113,7 @@ export function createInvestorEntity(fundAddr: Address, userAddr: Address): Inve
         investor.fund = fundAddr.toHexString();
 
         investor.share = ZERO_BI;
+        investor.stakingShare = ZERO_BI;
         investor.totalInvestment = ZERO_BD;
         investor.totalInvestmentUSD = ZERO_BD;
         investor.totalDepositedAmount = ZERO_BD;

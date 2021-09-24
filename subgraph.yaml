@@ -124,6 +124,8 @@ templates:
           file: ./abis/UniV3Pool.json
         - name: UniV3Factory
           file: ./abis/UniV3Factory.json
+        - name: StakingRewards
+          file: ./abis/StakingRewards.json
       eventHandlers:
         - event: Transfer(indexed address,indexed address,uint256)
           handler: handleTransfer

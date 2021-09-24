@@ -20,6 +20,7 @@ export let BI_6 = BigInt.fromI32(6);
 export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).minus(ONE_BI).leftShift(1).plus(ONE_BI);
 
 export let START_PROCESS_BLOCK = {{startProcessBlock}};
+export const HPT_ADDRESS = '{{hptAddress}}';
 export const WETH_ADDRESS = '{{wethAddress}}';
 const USDC_WETH_03_POOL = '{{usdcEth03Pool}}';
 

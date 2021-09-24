@@ -151,6 +151,8 @@ type Investor @entity {
 
     # 我的份额
     share: BigInt!
+    # 抵押挖矿份额
+    stakingShare: BigInt!
     # 当前本金
     totalInvestment: BigDecimal!
 
