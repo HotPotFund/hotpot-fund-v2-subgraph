@@ -64,6 +64,8 @@ export function handleFundCreated(event: FundCreated): void {
     fundEntity.totalFees = ZERO_BD;
     fundEntity.totalPendingFees = ZERO_BD;
     fundEntity.totalWithdrewFees = ZERO_BD;
+    fundEntity.totalProtocolFees = ZERO_BD;
+    fundEntity.totalProtocolFeesUSD = ZERO_BD;
 
     fundEntity.save();
 
@@ -76,6 +78,7 @@ export function handleFundCreated(event: FundCreated): void {
         fundSummary.totalWithdrewFees = ZERO_BD;
         fundSummary.totalInvestmentUSD = ZERO_BD;
         fundSummary.totalAssetsUSD = ZERO_BD;
+        fundSummary.totalProtocolFeesUSD = ZERO_BD;
     }
     fundSummary.length = fundSummary.length.plus(ONE_BI);
     let funds = fundSummary.funds || [];

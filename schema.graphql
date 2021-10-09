@@ -28,6 +28,7 @@ type FundSummary @entity{
     #美元值
     totalInvestmentUSD: BigDecimal!
     totalAssetsUSD: BigDecimal!
+    totalProtocolFeesUSD: BigDecimal!
 
     #总的赚得的fees
     totalFees: BigDecimal!
@@ -88,6 +89,10 @@ type Fund @entity {
     totalPendingFees: BigDecimal!
     # 已经领取的fees
     totalWithdrewFees: BigDecimal!
+
+    # 累计协议fees(20%)
+    totalProtocolFees: BigDecimal!
+    totalProtocolFeesUSD: BigDecimal!
 }
 
 type Path @entity {
@@ -138,8 +143,12 @@ type InvestorSummary @entity {
 
     # 美元值
     totalInvestmentUSD: BigDecimal!
+    totalProtocolFeesUSD: BigDecimal!
 
     positions: [Investor]! @derivedFrom(field: "summary")
+
+    created_timestamp: BigInt!
+    created_block: BigInt!
 }
 
 type Investor @entity {
@@ -174,6 +183,10 @@ type Investor @entity {
     totalPendingFees: BigDecimal!
     # 已经领取的fees
     totalWithdrewFees: BigDecimal!
+
+    # 累计协议fees(20%)
+    totalProtocolFees: BigDecimal!
+    totalProtocolFeesUSD: BigDecimal!
 }
 
 type Pool @entity {
@@ -382,6 +395,8 @@ type WithdrawTx @entity {
     owner: Bytes!
     amount: BigDecimal!
     amountUSD: BigDecimal!
+    protocolFees: BigDecimal!
+    protocolFeesUSD: BigDecimal!
     share: BigInt!
 
     investor: Investor!
