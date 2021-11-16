@@ -133,11 +133,11 @@ export function updateFundPools(fundEntity: Fund,
 export function syncFundStatusData(fundEntity: Fund,
                                    fundTokenEntity: Token,
                                    fund: FundContract,
-                                   fundTokenPriceUSD: BigDecimal = null): void {
+                                   fundTokenPriceUSD: BigDecimal | null = null): void {
     // 基金本币余额
     fundEntity.balance = convertTokenToDecimal(ERC20.bind(Address.fromString(fundEntity.fundToken)).balanceOf(fund._address), fundTokenEntity.decimals);
     fundEntity.totalAssets = convertTokenToDecimal(fund.totalAssets(), fundTokenEntity.decimals);
-    if (fundTokenPriceUSD == null) fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
+    if (fundTokenPriceUSD === null) fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
     fundEntity.totalAssetsUSD = fundTokenPriceUSD.times(fundEntity.totalAssets);
 }
 
@@ -146,8 +146,8 @@ export function syncTxStatusData(txEntity: Transaction, call: ethereum.Call): vo
     txEntity.blockNumber = call.block.number;
     txEntity.from = call.transaction.from;
     txEntity.gasPrice = call.transaction.gasPrice.divDecimal(exponentToBigDecimal(BI_18));
-    txEntity.gasUsed = call.transaction.gasUsed;
-    txEntity.gasFee = txEntity.gasPrice.times(txEntity.gasUsed.toBigDecimal());
+    txEntity.gasLimit = call.transaction.gasLimit;
+    txEntity.gasFee = txEntity.gasPrice.times(txEntity.gasLimit.toBigDecimal());
 }
 
 export function syncTxStatusDataWithEvent(txEntity: Transaction, event: ethereum.Event): void {
@@ -155,8 +155,8 @@ export function syncTxStatusDataWithEvent(txEntity: Transaction, event: ethereum
     txEntity.blockNumber = event.block.number;
     txEntity.from = event.transaction.from;
     txEntity.gasPrice = event.transaction.gasPrice.divDecimal(exponentToBigDecimal(BI_18));
-    txEntity.gasUsed = event.transaction.gasUsed;
-    txEntity.gasFee = txEntity.gasPrice.times(txEntity.gasUsed.toBigDecimal());
+    txEntity.gasLimit = event.transaction.gasLimit;
+    txEntity.gasFee = txEntity.gasPrice.times(txEntity.gasLimit.toBigDecimal());
 }
 
 
@@ -186,20 +186,21 @@ export function handleChangeVerifiedToken(event: ChangeVerifiedToken): void {
 
 export function handleHarvest(event: Harvest): void {
     let txId = event.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.harvests.length).toString();
-    transaction.harvests = transaction.harvests.concat([id]);
-    syncTxStatusDataWithEvent(transaction as Transaction, event as ethereum.Event);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txHarvests = (transaction.harvests || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txHarvests.length).toString();
+    transaction.harvests = txHarvests.concat([id]);
+    syncTxStatusDataWithEvent(transaction, event);
 
     let tokenEntity = Token.load(event.params.token.toHex()) as Token;
     tokenEntity.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(event.params.token, event.address), tokenEntity.decimals);
 
-    let havestTx = HarvestTx.load(id) || new HarvestTx(id);
-    havestTx.transaction = txId;
-    havestTx.token = tokenEntity.id;
-    havestTx.amount = convertTokenToDecimal(event.params.amount, tokenEntity.decimals);
-    havestTx.burned = convertTokenToDecimal(event.params.burned, BI_18);
-    havestTx.amountUSD = getTokenPriceUSD(tokenEntity).times(havestTx.amount);
+    let harvestTx = (HarvestTx.load(id) || new HarvestTx(id)) as HarvestTx;
+    harvestTx.transaction = txId;
+    harvestTx.token = tokenEntity.id;
+    harvestTx.amount = convertTokenToDecimal(event.params.amount, tokenEntity.decimals);
+    harvestTx.burned = convertTokenToDecimal(event.params.burned, BI_18);
+    harvestTx.amountUSD = getTokenPriceUSD(tokenEntity).times(harvestTx.amount);
 
     let harvestSummary = HarvestSummary.load("1");
     if (harvestSummary === null) {
@@ -209,11 +210,11 @@ export function handleHarvest(event: Harvest): void {
         harvestSummary.totalAmountUSD = ZERO_BD;
     }
     harvestSummary.txCount = harvestSummary.txCount.plus(ONE_BI);
-    harvestSummary.totalBurned = harvestSummary.totalBurned.plus(havestTx.burned);
-    harvestSummary.totalAmountUSD = harvestSummary.totalAmountUSD.plus(havestTx.amountUSD);
+    harvestSummary.totalBurned = harvestSummary.totalBurned.plus(harvestTx.burned);
+    harvestSummary.totalAmountUSD = harvestSummary.totalAmountUSD.plus(harvestTx.amountUSD);
 
     tokenEntity.save();
-    havestTx.save();
+    harvestTx.save();
     transaction.save();
     harvestSummary.save();
 }
@@ -238,10 +239,11 @@ export function handleSetHarvestPath(event: SetHarvestPath): void {
     token.fundIncome = convertTokenToDecimal(fetchTokenBalanceOf(address, event.address), token.decimals);
 
     let txId = event.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.setHarvestPaths.length).toString();
-    transaction.setHarvestPaths = transaction.setHarvestPaths.concat([id]);
-    syncTxStatusDataWithEvent(transaction as Transaction, event);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txSetHarvestPaths = (transaction.setHarvestPaths || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txSetHarvestPaths.length).toString();
+    transaction.setHarvestPaths = txSetHarvestPaths.concat([id]);
+    syncTxStatusDataWithEvent(transaction, event);
     token.setHarvestPathTx = id;
     token.save();
 
@@ -250,13 +252,13 @@ export function handleSetHarvestPath(event: SetHarvestPath): void {
     setPathTx.distToken = event.params.token.toHex();
     setPathTx.path = event.params.path;
 
-    let pathPools = setPathTx.pathPools || [];
+    let pathPools = (setPathTx.pathPools || []) as Array<string>;
     pathPools.splice(0, pathPools.length);
     let count = 0;
     let data = event.params.path.toHex().substr(2);
     do {
         let pathPoolId = event.address.toHex() + "-" + event.params.token.toHex() + count.toString();
-        let pathPool = PathPool.load(pathPoolId) || new PathPool(pathPoolId);
+        let pathPool = (PathPool.load(pathPoolId) || new PathPool(pathPoolId)) as PathPool;
         pathPool.tokenIn = '0x' + data.substr(0, 40);
         // @ts-ignore
         pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
@@ -283,11 +285,12 @@ export function handleSetMaxHarvestSlippage(event: SetMaxHarvestSlippage): void 
 
 export function handleSetPath(event: SetPath): void {
     let txId = event.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.setPaths.length).toString();
-    transaction.setPaths = transaction.setPaths.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txSetPaths = (transaction.setPaths || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txSetPaths.length).toString();
+    transaction.setPaths = txSetPaths.concat([id]);
     transaction.fund = event.params.fund.toHex();
-    syncTxStatusDataWithEvent(transaction as Transaction, event);
+    syncTxStatusDataWithEvent(transaction, event);
 
     let setPathTx = new SetPathTx(id);
     setPathTx.transaction = txId;
@@ -304,13 +307,13 @@ export function handleSetPath(event: SetPath): void {
     }
 
     path.path = event.params.path;
-    let pathPools = path.pathPools || [];
+    let pathPools = (path.pathPools || []) as Array<string>;
     pathPools.splice(0, pathPools.length);
     let count = 0;
     let data = event.params.path.toHex().substr(2);
     do {
         let pathPoolId = event.params.fund.toHex() + "-" + event.params.distToken.toHex() + count.toString();
-        let pathPool = PathPool.load(pathPoolId) || new PathPool(pathPoolId);
+        let pathPool = (PathPool.load(pathPoolId) || new PathPool(pathPoolId)) as PathPool;
         pathPool.tokenIn = '0x' + data.substr(0, 40);
         // @ts-ignore
         pathPool.fee = parseInt('0x' + data.substr(40, 6)) as i32;
@@ -332,9 +335,9 @@ function updateFees(block: ethereum.Block,
                     fundEntity: Fund,
                     fundTokenEntity: Token,
                     fund: FundContract,
-                    fundTokenPriceUSD: BigDecimal = null,
+                    fundTokenPriceUSD: BigDecimal | null = null,
                     isSaveSummary: boolean = true,
-                    fundSummary: FundSummary = null): void {
+                    fundSummary: FundSummary | null = null): void {
     syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     let manager = Manager.load(fundEntity.manager) as Manager;
 
@@ -350,15 +353,16 @@ function updateFees(block: ethereum.Block,
     updateFundDayData(block, fundEntity, totalShare);
 
     if (fundSummary != null || isSaveSummary) {
-        fundSummary = fundSummary || FundSummary.load("1") as FundSummary;
+        fundSummary = (fundSummary || FundSummary.load("1")) as FundSummary;
         fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
         fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees);
     }
-    if (isSaveSummary) {
+    if (fundSummary != null && isSaveSummary) {
         fundSummary.save();
     } else {
-        let bundle = Bundle.load("1") || new Bundle("1");
-        bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS) as Token);
+        let bundle = Bundle.load("1");
+        if (bundle === null) bundle = new Bundle("1");
+        bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS));
         bundle.save();
     }
     manager.save();
@@ -371,11 +375,12 @@ export function handleInit(call: InitCall): void {
     let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.inits.length).toString();
-    transaction.inits = transaction.inits.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txInits = (transaction.inits || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txInits.length).toString();
+    transaction.inits = txInits.concat([id]);
     transaction.fund = call.inputs.fund.toHex();
-    syncTxStatusData(transaction as Transaction, call);
+    syncTxStatusData(transaction, call);
 
     let initTx = new InitTx(id);
     initTx.transaction = txId;
@@ -460,13 +465,14 @@ export function handleAdd(call: AddCall): void {
     let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.adds.length).toString();
-    transaction.adds = transaction.adds.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txAdds = (transaction.adds || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txAdds.length).toString();
+    transaction.adds = txAdds.concat([id]);
     transaction.fund = call.inputs.fund.toHex();
-    syncTxStatusData(transaction as Transaction, call);
+    syncTxStatusData(transaction, call);
 
-    let addTx = AddTx.load(id) || new AddTx(id);
+    let addTx = (AddTx.load(id) || new AddTx(id)) as AddTx;
     addTx.transaction = txId;
     addTx.fund = call.inputs.fund.toHex();
     addTx.poolIndex = call.inputs.poolIndex;
@@ -490,13 +496,14 @@ export function handleSub(call: SubCall): void {
     let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.subs.length).toString();
-    transaction.subs = transaction.subs.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txSubs = (transaction.subs || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txSubs.length).toString();
+    transaction.subs = txSubs.concat([id]);
     transaction.fund = call.inputs.fund.toHex();
-    syncTxStatusData(transaction as Transaction, call);
+    syncTxStatusData(transaction, call);
 
-    let subTx = SubTx.load(id) || new SubTx(id);
+    let subTx = (SubTx.load(id) || new SubTx(id)) as SubTx;
     subTx.transaction = txId;
     subTx.fund = call.inputs.fund.toHex();
     subTx.poolIndex = call.inputs.poolIndex;
@@ -521,13 +528,14 @@ export function handleMove(call: MoveCall): void {
     let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
 
     let txId = call.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.moves.length).toString();
-    transaction.moves = transaction.moves.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txMoves = (transaction.moves || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txMoves.length).toString();
+    transaction.moves = txMoves.concat([id]);
     transaction.fund = call.inputs.fund.toHex();
-    syncTxStatusData(transaction as Transaction, call);
+    syncTxStatusData(transaction, call);
 
-    let movesTx = MoveTx.load(id) || new MoveTx(id);
+    let movesTx = (MoveTx.load(id) || new MoveTx(id)) as MoveTx;
     movesTx.transaction = txId;
     movesTx.fund = call.inputs.fund.toHexString();
     movesTx.poolIndex = call.inputs.poolIndex;
@@ -561,9 +569,10 @@ export function handleBlock(block: ethereum.Block): void {
         if (block.number.mod(BigInt.fromI32(4 * 4)).notEqual(ZERO_BI)) return;
     }
 
-    let fundSummary = FundSummary.load("1") as FundSummary;
-    if (fundSummary == null) return;
-    let funds = fundSummary.funds as Array<string>;
+    let fundSummary = FundSummary.load("1");
+    if (fundSummary === null) return;
+    let funds = fundSummary.funds;
+    if (funds === null) return;
 
     let totalAssetsUSD = ZERO_BD;
     for (let i = 0; i < funds.length; i++) {
@@ -574,8 +583,8 @@ export function handleBlock(block: ethereum.Block): void {
         totalAssetsUSD = totalAssetsUSD.plus(fundEntity.totalAssetsUSD);
         fundEntity.save();
     }
-    let bundle = Bundle.load("1") || new Bundle("1");
-    bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS) as Token);
+    let bundle = (Bundle.load("1") || new Bundle("1")) as Bundle;
+    bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS));
     bundle.save();
     fundSummary.totalAssetsUSD = totalAssetsUSD;
     fundSummary.save();

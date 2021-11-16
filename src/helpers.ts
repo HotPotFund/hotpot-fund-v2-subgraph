@@ -19,7 +19,7 @@ export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
 export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).minus(ONE_BI).leftShift(1).plus(ONE_BI);
 
-export let START_PROCESS_BLOCK = 13383635;
+export let START_PROCESS_BLOCK = 13626516;
 export const HPT_ADDRESS = '0x615d8e5e1344b36a95f6ecd8e6cda020e84dc25b';
 export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';
@@ -64,7 +64,7 @@ export function getAvailableUniV3Pool(tokenA: Address, tokenB: Address): Address
     return poolAddr;
 }
 
-export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
+export function getTokenPriceUSD(tokenEntity: Token | null): BigDecimal {
     if (tokenEntity == null) return ZERO_BD;
 
     let ethUsdPrice = getEthPriceInUSD();
@@ -125,7 +125,7 @@ export function getTokenPriceUSD(tokenEntity: Token): BigDecimal {
 
 export function exponentToBigDecimal(decimals: BigInt): BigDecimal {
     let bd = BigDecimal.fromString('1');
-    for (let i = ZERO_BI; i.lt(decimals as BigInt); i = i.plus(ONE_BI)) {
+    for (let i = ZERO_BI; i.lt(decimals); i = i.plus(ONE_BI)) {
         bd = bd.times(BigDecimal.fromString('10'))
     }
     return bd;
@@ -194,34 +194,34 @@ export function fetchTokenName(tokenAddress: Address): string {
 
 export function fetchTokenTotalSupply(tokenAddress: Address): BigInt {
     let contract = ERC20.bind(tokenAddress);
-    let totalSupplyValue = 0;
+    let totalSupplyValue = ZERO_BI;
     let totalSupplyResult = contract.try_totalSupply();
     if (!totalSupplyResult.reverted) {
-        totalSupplyValue = totalSupplyResult as i32
+        totalSupplyValue = totalSupplyResult.value
     }
-    return BigInt.fromI32(totalSupplyValue as i32)
+    return totalSupplyValue;
 }
 
 export function fetchTokenBalanceOf(tokenAddress: Address, owner: Address): BigInt {
     let contract = ERC20.bind(tokenAddress);
-    let balanceValue = 0;
+    let balanceValue = ZERO_BI;
     let balanceValueResult = contract.try_balanceOf(owner);
     if (!balanceValueResult.reverted) {
-        balanceValue = balanceValueResult as i32
+        balanceValue = balanceValueResult.value
     }
-    return BigInt.fromI32(balanceValue as i32)
+    return balanceValue;
 }
 
 export function fetchTokenDecimals(tokenAddress: Address): BigInt {
     let contract = ERC20.bind(tokenAddress);
     // try types uint8 for decimals
-    let decimalValue = null;
+    let decimalValue = 0;// 默认精度为0
     let decimalResult = contract.try_decimals();
     if (!decimalResult.reverted) {
         decimalValue = decimalResult.value
     }
 
-    return BigInt.fromI32(decimalValue as i32)
+    return BigInt.fromI32(decimalValue)
 }
 
 export function getPositionKey(pool: string, tickLower: BigInt, tickUpper: BigInt): Bytes {
@@ -233,8 +233,11 @@ export function getPositionKey(pool: string, tickLower: BigInt, tickUpper: BigIn
 
 class FeeGrowthInsideParams {
     pool: UniV3Pool;
+    // @ts-ignore
     tickLower: i32;
+    // @ts-ignore
     tickUpper: i32;
+    // @ts-ignore
     tickCurrent: i32;
     feeGrowthGlobal0X128: BigInt;
     feeGrowthGlobal1X128: BigInt;
@@ -286,6 +289,7 @@ export function getFeeGrowthInside(params: FeeGrowthInsideParams): FeeGrowthInsi
 
 export class CalFeesParams {
     sqrtPriceX96: BigInt;
+    // @ts-ignore
     tickCurrent: i32;
     feeGrowthGlobal0X128: BigInt;
     feeGrowthGlobal1X128: BigInt;
@@ -415,6 +419,7 @@ export function calUniV3Position(params: CalFeesParams, position: Position, uniV
     return {fees, feesUSD, fees0, fees1, amount0, amount1, amount, amountUSD};
 }
 
+// @ts-ignore
 function getSqrtRatioAtTick(tick: i32): BigInt {
     let val = 1.0001 ** tick;
     return BigInt.fromString(BigDecimal.fromString((val).toString())

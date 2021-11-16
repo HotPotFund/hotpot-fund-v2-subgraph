@@ -22,7 +22,7 @@ import {ADDRESS_ZERO, convertTokenToDecimal, getTokenPriceUSD, HPT_ADDRESS, ZERO
 import {StakingRewards} from "../../generated/templates/Fund/StakingRewards";
 
 
-function isStakingTransfer(addr: Address, fundAddr: Address): StakingRewards {
+function isStakingTransfer(addr: Address, fundAddr: Address): StakingRewards | null {
     let stakingRewards = StakingRewards.bind(addr);
     let result = stakingRewards.try_stakingToken();
     if (result.reverted || result.value.toHexString() != fundAddr.toHexString()) return null;
@@ -62,8 +62,7 @@ export function handleTransfer(event: Transfer): void {
     //如果接收者是挖矿合约，做抵押操作
     if (isStakingTransfer(event.params.to, event.address) != null)
         fromInvestor.stakingShare = fromInvestor.stakingShare.plus(event.params.value);
-    // @ts-ignore
-    updateInvestorDayData(event as DepositEvent, fromInvestor, fromInvestorLastedShare);
+    updateInvestorDayData(event, fromInvestor, fromInvestorLastedShare);
 
     //结算toInvestor
     let toInvestor = createInvestorEntity(event.address, event.params.to, event);
@@ -77,19 +76,18 @@ export function handleTransfer(event: Transfer): void {
     // 发起者设挖矿合约，做提取操作
     if (isStakingTransfer(event.params.from, event.address) != null)
         toInvestor.stakingShare = toInvestor.stakingShare.minus(event.params.value);
-    // @ts-ignore
-    updateInvestorDayData(event as DepositEvent, toInvestor, toInvestorLastedShare);
+    updateInvestorDayData(event, toInvestor, toInvestorLastedShare);
 
     fundEntity.lastedSettlementPrice = lastedSettlementPrice;
     fundEntity.totalFees = fundEntity.totalFees.plus(deltaFees);
     fundEntity.totalPendingFees = fundEntity.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     fundEntity.totalWithdrewFees = fundEntity.totalFees.minus(fundEntity.totalPendingFees);
-    let fundSummary = FundSummary.load("1");
+    let fundSummary = FundSummary.load("1") as FundSummary;
     fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
     fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     fundSummary.totalWithdrewFees = fundSummary.totalFees.minus(fundSummary.totalPendingFees);
 
-    let manager = Manager.load(fundEntity.manager);
+    let manager = Manager.load(fundEntity.manager) as Manager;
     manager.totalFees = manager.totalFees.plus(deltaFees);
     manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     manager.totalWithdrewFees = manager.totalFees.minus(manager.totalPendingFees);
@@ -105,7 +103,7 @@ export function handleTransfer(event: Transfer): void {
 
 export function createInvestorEntity(fundAddr: Address, userAddr: Address, event: ethereum.Event): Investor {
     let ID = fundAddr.toHexString() + "-" + userAddr.toHexString();
-    let investor = Investor.load(ID) as Investor;
+    let investor = Investor.load(ID);
 
     if (investor === null) {
         investor = new Investor(ID);
@@ -131,7 +129,7 @@ export function createInvestorEntity(fundAddr: Address, userAddr: Address, event
         investor.save();
 
         let investorSummary = InvestorSummary.load(userAddr.toHex());
-        if (!investorSummary) {
+        if (investorSummary === null) {
             investorSummary = new InvestorSummary(userAddr.toHex());
             investorSummary.totalInvestmentUSD = ZERO_BD;
             investorSummary.totalProtocolFeesUSD = ZERO_BD;
@@ -151,13 +149,14 @@ export function handleDeposit(event: DepositEvent): void {
     let fund = FundContract.bind(event.address);
 
     let txId = event.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.deposits.length).toString();
-    transaction.deposits = transaction.deposits.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txDeposits = (transaction.deposits || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txDeposits.length).toString();
+    transaction.deposits = txDeposits.concat([id]);
     transaction.fund = event.address.toHex();
-    syncTxStatusDataWithEvent(transaction as Transaction, event as ethereum.Event);
+    syncTxStatusDataWithEvent(transaction, event);
 
-    let depositTx = DepositTx.load(id) || new DepositTx(id);
+    let depositTx = (DepositTx.load(id) || new DepositTx(id)) as DepositTx;
     depositTx.transaction = txId;
     depositTx.fund = event.address.toHexString();
     depositTx.owner = event.params.owner;
@@ -180,7 +179,7 @@ export function handleDeposit(event: DepositEvent): void {
     let lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(sharePrice);
 
     let investor = createInvestorEntity(event.address, event.params.owner, event);
-    let investorSummary = InvestorSummary.load(event.params.owner.toHex());
+    let investorSummary = InvestorSummary.load(event.params.owner.toHex()) as InvestorSummary;
     let lastedShare = convertTokenToDecimal(investor.share, fundEntity.decimals);
     let investorFees = lastedSettlementPrice.minus(investor.lastedSettlementPrice).times(lastedShare);
     investor.lastedSettlementPrice = lastedSettlementPrice;
@@ -198,13 +197,13 @@ export function handleDeposit(event: DepositEvent): void {
     fundEntity.totalFees = fundEntity.totalFees.plus(deltaFees);
     fundEntity.lastedSettlementPrice = lastedSettlementPrice;
     fundEntity.totalPendingFees = fundEntity.totalPendingFees.plus(deltaFees);
-    let fundSummary = FundSummary.load("1");
+    let fundSummary = FundSummary.load("1") as FundSummary;
     fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
     fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees);
     fundSummary.totalInvestmentUSD = fundSummary.totalInvestmentUSD.plus(depositTx.amountUSD);
     fundSummary.totalAssetsUSD = fundSummary.totalAssetsUSD.plus(depositTx.amountUSD);
 
-    let manager = Manager.load(fundEntity.manager);
+    let manager = Manager.load(fundEntity.manager) as Manager;
     manager.totalInvestmentUSD = manager.totalInvestmentUSD.plus(depositTx.amountUSD);
     manager.totalAssetsUSD = manager.totalAssetsUSD.plus(depositTx.amountUSD);
     manager.totalFees = manager.totalFees.plus(deltaFees);
@@ -219,7 +218,7 @@ export function handleDeposit(event: DepositEvent): void {
     fundSummary.save();
     manager.save();
 
-    updateInvestorDayData(event as DepositEvent, investor, lastedShare);
+    updateInvestorDayData(event, investor, lastedShare);
     updateFundDayData(event.block, fundEntity, totalShare);
 }
 
@@ -229,14 +228,15 @@ export function handleWithdraw(event: WithdrawEvent): void {
     let fund = FundContract.bind(event.address);
 
     let txId = event.transaction.hash.toHex();
-    let transaction = Transaction.load(txId) || new Transaction(txId);
-    let id = txId + "-" + BigInt.fromI32(transaction.withdraws.length).toString();
-    transaction.withdraws = transaction.withdraws.concat([id]);
+    let transaction = (Transaction.load(txId) || new Transaction(txId)) as Transaction;
+    let txWithdraws = (transaction.withdraws || []) as Array<string>;
+    let id = txId + "-" + BigInt.fromI32(txWithdraws.length).toString();
+    transaction.withdraws = txWithdraws.concat([id]);
     transaction.fund = event.address.toHex();
-    syncTxStatusDataWithEvent(transaction as Transaction, event as ethereum.Event);
+    syncTxStatusDataWithEvent(transaction, event);
 
     let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
-    let withdrawTx = WithdrawTx.load(id) || new WithdrawTx(id);
+    let withdrawTx = (WithdrawTx.load(id) || new WithdrawTx(id)) as WithdrawTx;
     withdrawTx.transaction = txId;
     withdrawTx.fund = event.address.toHexString();
     withdrawTx.owner = event.params.owner;
@@ -258,7 +258,7 @@ export function handleWithdraw(event: WithdrawEvent): void {
     let lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(deltaPerSharePrice);
 
     let investor = createInvestorEntity(event.address, event.params.owner, event);
-    let investorSummary = InvestorSummary.load(event.params.owner.toHex());
+    let investorSummary = InvestorSummary.load(event.params.owner.toHex()) as InvestorSummary;
     let investorLastedShare = convertTokenToDecimal(investor.share, fundEntity.decimals);
     let withdrewShare = convertTokenToDecimal(event.params.share, fundEntity.decimals);
     let investorDeltaFees = lastedSettlementPrice.minus(investor.lastedSettlementPrice).times(investorLastedShare);
@@ -303,7 +303,7 @@ export function handleWithdraw(event: WithdrawEvent): void {
     fundEntity.totalWithdrewAmountUSD = fundEntity.totalWithdrewAmountUSD.plus(withdrawTx.amountUSD);
     fundEntity.totalProtocolFees = fundEntity.totalProtocolFees.plus(protocolFees);
     fundEntity.totalProtocolFeesUSD = fundEntity.totalProtocolFeesUSD.plus(protocolFeesUSD);
-    let fundSummary = FundSummary.load("1");
+    let fundSummary = FundSummary.load("1") as FundSummary;
     fundSummary.totalFees = fundSummary.totalFees.plus(deltaFees);
     fundSummary.totalPendingFees = fundSummary.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     fundSummary.totalWithdrewFees = fundSummary.totalFees.minus(fundSummary.totalPendingFees);
@@ -311,7 +311,7 @@ export function handleWithdraw(event: WithdrawEvent): void {
     fundSummary.totalAssetsUSD = fundSummary.totalAssetsUSD.minus(withdrawTx.amountUSD);
     fundSummary.totalProtocolFeesUSD = fundSummary.totalProtocolFeesUSD.plus(protocolFeesUSD);
 
-    let manager = Manager.load(fundEntity.manager);
+    let manager = Manager.load(fundEntity.manager) as Manager;
     manager.totalFees = manager.totalFees.plus(deltaFees);
     manager.totalPendingFees = manager.totalPendingFees.plus(deltaFees).minus(withdrawFees);
     manager.totalWithdrewFees = manager.totalFees.minus(manager.totalPendingFees);
@@ -326,6 +326,6 @@ export function handleWithdraw(event: WithdrawEvent): void {
     fundSummary.save();
     manager.save();
 
-    updateInvestorDayData(event as DepositEvent, investor, investorLastedShare);
+    updateInvestorDayData(event, investor, investorLastedShare);
     updateFundDayData(event.block, fundEntity, totalShare);
 }

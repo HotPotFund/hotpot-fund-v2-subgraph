@@ -4,24 +4,18 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "prepare": "mustache config/mainnet.json helpers.template > src/helpers.ts && mustache config/mainnet.json subgraph.template > subgraph.yaml",
-    "prepare:dev": "mustache config/ropsten.json helpers.template > src/helpers.ts && mustache config/ropsten.json subgraph.template > subgraph.yaml",
+    "prepare": "mustache config/mainnet.json src/helpers.template.ts > src/helpers.ts && mustache config/mainnet.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:dev": "mustache config/ropsten.json src/helpers.template.ts > src/helpers.ts && mustache config/ropsten.json subgraph.template.yaml > subgraph.yaml",
     "deploy": "graph deploy HotPotFund/hotpot-fund-v2 --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/",
     "deploy:dev": "graph deploy HotPotFund/hotpotfund-v2-ropsten --node https://api.thegraph.com/deploy/ --ipfs https://api.thegraph.com/ipfs/",
     "create:local": "graph create --node http://localhost:8020/ HotPotFund/hotpot-fund-v2",
     "remove:local": "graph remove --node http://localhost:8020/ HotPotFund/hotpot-fund-v2",
     "deploy:local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 HotPotFund/hotpot-fund-v2"
   },
-  "dependencies": {
-    "@graphprotocol/graph-cli": "^0.20.0",
-    "@graphprotocol/graph-ts": "^0.20.0",
-    "@typescript-eslint/eslint-plugin": "^2.0.0",
-    "@typescript-eslint/parser": "^2.0.0",
-    "eslint": "^6.2.2",
-    "eslint-config-prettier": "^6.1.0",
-    "prettier": "^1.18.2"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.22.1",
+    "@graphprotocol/graph-ts": "^0.22.1",
     "mustache": "^3.1.0"
   }
 }

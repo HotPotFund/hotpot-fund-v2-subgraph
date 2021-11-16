@@ -11,7 +11,7 @@ dataSources:
       startBlock: {{ctrlCreatedBlock}}
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.4
+      apiVersion: 0.0.5
       language: wasm/assemblyscript
       entities:
         - ChangeVerifiedToken
@@ -67,7 +67,7 @@ dataSources:
       startBlock: {{factoryCreatedBlock}}
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.4
+      apiVersion: 0.0.5
       language: wasm/assemblyscript
       entities:
         - FundCreated
@@ -100,7 +100,7 @@ templates:
       abi: Fund
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.4
+      apiVersion: 0.0.5
       language: wasm/assemblyscript
       entities:
         - Approval

@@ -122,7 +122,7 @@ type Manager @entity {
     id: ID!
 
     length: BigInt!
-    funds: [Fund]! @derivedFrom(field: "manager")
+    funds: [Fund!]! @derivedFrom(field: "manager")
 
     # 美元值
     totalInvestmentUSD: BigDecimal!
@@ -145,7 +145,7 @@ type InvestorSummary @entity {
     totalInvestmentUSD: BigDecimal!
     totalProtocolFeesUSD: BigDecimal!
 
-    positions: [Investor]! @derivedFrom(field: "summary")
+    positions: [Investor!]! @derivedFrom(field: "summary")
 
     created_timestamp: BigInt!
     created_block: BigInt!
@@ -199,7 +199,7 @@ type Pool @entity {
     token1: Token!
     fee: BigInt!
 
-    positions: [Position]! @derivedFrom(field: "pool")
+    positions: [Position!]! @derivedFrom(field: "pool")
     positionsLength: BigInt!
 
     assetAmount: BigDecimal!
@@ -259,7 +259,7 @@ type Transaction @entity {
     from: Bytes!
     gasFee: BigDecimal!
     gasPrice: BigDecimal!
-    gasUsed: BigInt!
+    gasLimit: BigInt!
 
     deposits: [DepositTx!]
     withdraws: [WithdrawTx!]

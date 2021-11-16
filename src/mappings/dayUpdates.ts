@@ -1,16 +1,15 @@
 import {BigDecimal, BigInt, ethereum} from "@graphprotocol/graph-ts/index";
 import {Fund, FundDayData, Investor, InvestorDayData} from "../../generated/schema";
 import {ONE_BI, ZERO_BD} from "../helpers";
-import {Deposit} from "../../generated/templates/Fund/Fund";
 
 
-export function updateInvestorDayData(event: Deposit, investor: Investor, lastedShare: BigDecimal,): InvestorDayData {
+export function updateInvestorDayData(event: ethereum.Event, investor: Investor, lastedShare: BigDecimal): InvestorDayData {
     //日数据
     let dayMod = event.block.timestamp.div(BigInt.fromI32(86400));
-    let dayID = event.address.toHexString() + "-" + event.params.owner.toHexString() + "-" + dayMod.toString();
+    let dayID = investor.id + "-" + dayMod.toString();
     let dayStartTimestamp = dayMod.times(BigInt.fromI32(86400));
 
-    let investorDayData = InvestorDayData.load(dayID.toString()) as InvestorDayData;
+    let investorDayData = InvestorDayData.load(dayID.toString());
     if (investorDayData === null) {
         investorDayData = new InvestorDayData(dayID.toString());
         investorDayData.date = dayStartTimestamp;
@@ -18,7 +17,7 @@ export function updateInvestorDayData(event: Deposit, investor: Investor, lasted
         investorDayData.fund = event.address.toHexString();
 
         let lastDayMode = dayMod.minus(ONE_BI);
-        let fundDayDataLastDay = FundDayData.load(event.address.toHexString() + "-" + lastDayMode.toString()) as FundDayData;
+        let fundDayDataLastDay = FundDayData.load(event.address.toHexString() + "-" + lastDayMode.toString());
         //以前投入过且基金已经启动了一天以上
         if (lastedShare.gt(ZERO_BD) && fundDayDataLastDay !== null) {
             investorDayData.dailySettlementPrice = fundDayDataLastDay.dailySettlementPrice;
@@ -53,14 +52,14 @@ export function updateFundDayData(block: ethereum.Block, fundEntity: Fund, laste
     let dayMod = block.timestamp.div(BigInt.fromI32(86400));
     let dayID = fundEntity.id + "-" + dayMod.toString();
 
-    let fundDayData = FundDayData.load(dayID.toString()) as FundDayData;
+    let fundDayData = FundDayData.load(dayID.toString());
     if (fundDayData === null) {
         fundDayData = new FundDayData(dayID.toString());
         fundDayData.date = dayMod.times(BigInt.fromI32(86400));
         fundDayData.fund = fundEntity.id;
 
         let lastDayMode = dayMod.minus(ONE_BI);
-        let fundDayDataLastDay = FundDayData.load(fundEntity.id + "-" + lastDayMode.toString()) as FundDayData;
+        let fundDayDataLastDay = FundDayData.load(fundEntity.id + "-" + lastDayMode.toString());
         if (fundDayDataLastDay) {
             fundDayData.dailySettlementPrice = fundDayDataLastDay.dailySettlementPrice;
             fundDayData.totalFees = fundDayDataLastDay.totalFees;

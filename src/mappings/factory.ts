@@ -81,7 +81,7 @@ export function handleFundCreated(event: FundCreated): void {
         fundSummary.totalProtocolFeesUSD = ZERO_BD;
     }
     fundSummary.length = fundSummary.length.plus(ONE_BI);
-    let funds = fundSummary.funds || [];
+    let funds = (fundSummary.funds || []) as Array<string>;
     funds.push(address.toHexString());
     fundSummary.funds = funds;
     fundSummary.save();
