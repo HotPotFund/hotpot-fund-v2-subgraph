@@ -42,18 +42,20 @@ dataSources:
           handler: handleSetHarvestPath
         - event: SetGovernance(indexed address)
           handler: handleSetGovernance
-        - event: SetMaxHarvestSlippage(uint256)
-          handler: handleSetMaxHarvestSlippage
         - event: SetPath(indexed address,indexed address,bytes)
           handler: handleSetPath
+        - event: SetMaxSqrtSlippage(uint256)
+          handler: handleSetMaxSqrtSlippage
+        - event: SetMaxPriceImpact(uint256)
+          handler: handleSetMaxPriceImpact
       callHandlers:
-        - function: init(address,address,address,uint24,int24,int24,uint256)
+        - function: init(address,address,address,uint24,int24,int24,uint256,uint256)
           handler: handleInit
-        - function: add(address,uint256,uint256,uint256,bool)
+        - function: add(address,uint256,uint256,uint256,bool,uint256)
           handler: handleAdd
-        - function: sub(address,uint256,uint256,uint256)
+        - function: sub(address,uint256,uint256,uint256,uint256)
           handler: handleSub
-        - function: move(address,uint256,uint256,uint256,uint256)
+        - function: move(address,uint256,uint256,uint256,uint256,uint256)
           handler: handleMove
       blockHandlers:
         - handler: handleBlock

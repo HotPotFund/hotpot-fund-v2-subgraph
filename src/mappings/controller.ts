@@ -7,7 +7,7 @@ import {
     SetHarvestPath,
     InitCall,
     MoveCall,
-    SubCall, SetGovernance, SetMaxHarvestSlippage, SetPath,
+    SubCall, SetGovernance, SetMaxSqrtSlippage, SetMaxPriceImpact, SetPath,
 } from "../../generated/Controller/Controller";
 import {ERC20} from "../../generated/Controller/ERC20";
 import {UniV3Pool} from "../../generated/Controller/UniV3Pool";
@@ -279,7 +279,11 @@ export function handleSetGovernance(event: SetGovernance): void {
 
 }
 
-export function handleSetMaxHarvestSlippage(event: SetMaxHarvestSlippage): void {
+export function handleSetMaxSqrtSlippage(event: SetMaxSqrtSlippage): void {
+
+}
+
+export function handleSetMaxPriceImpact(event: SetMaxPriceImpact): void {
 
 }
 
