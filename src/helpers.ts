@@ -19,7 +19,7 @@ export let BI_18 = BigInt.fromI32(18);
 export let BI_6 = BigInt.fromI32(6);
 export let BI_256_MAX = BigInt.fromI32(1).leftShift(255).minus(ONE_BI).leftShift(1).plus(ONE_BI);
 
-export let START_PROCESS_BLOCK = 13626516;
+export let START_PROCESS_BLOCK = 13684350;
 export const HPT_ADDRESS = '0x615d8e5e1344b36a95f6ecd8e6cda020e84dc25b';
 export const WETH_ADDRESS = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2';
 const USDC_WETH_03_POOL = '0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8';

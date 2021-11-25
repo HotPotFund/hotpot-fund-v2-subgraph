@@ -98,11 +98,12 @@ export function updateFundPools(fundEntity: Fund,
         for (let positionIndex = 0; positionIndex < pool.positionsLength.toI32(); positionIndex++) {
             let position = Position.load(fundEntity.id + "-" + poolIndex.toString() + "-" + positionIndex.toString()) as Position;
             let positionOfUniV3 = uniV3Pool.positions(position.positionKey);
+            let liquidity = positionOfUniV3.value0;
             // 如果当前头寸和历史状态都为空，就直接返回
-            if (positionOfUniV3.value0.equals(ZERO_BI) && position.isEmpty) continue;
+            if (liquidity.equals(ZERO_BI) && position.isEmpty) continue;
             let results = calFeesOfPosition(params, position, uniV3Pool, positionOfUniV3);
             deltaFees = deltaFees.plus(results.fees);
-            position.liquidity = uniV3Pool.positions(position.positionKey).value0;
+            position.liquidity = liquidity;
             position.isEmpty = !position.liquidity.gt(ZERO_BI);
             position.feeGrowthInside0LastX128 = results.feeGrowthInside0X128;
             position.feeGrowthInside1LastX128 = results.feeGrowthInside1X128;
@@ -363,6 +364,7 @@ function updateFees(block: ethereum.Block,
         let bundle = Bundle.load("1");
         if (bundle === null) bundle = new Bundle("1");
         bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS));
+        bundle.timestamp = block.timestamp;
         bundle.save();
     }
     manager.save();
@@ -557,16 +559,20 @@ export function handleMove(call: MoveCall): void {
 }
 
 export function handleBlock(block: ethereum.Block): void {
-    //modDay在整点的-+24秒内，就认为是整点，相反就不是整点时刻
-    //如果不是整点: modDay in (24 - 86376)
-    let modDay = block.timestamp.mod(BigInt.fromI32(86400));
-    if (modDay.gt(BigInt.fromI32(24)) && modDay.lt(BigInt.fromI32(86376))) {
+    let bundle: Bundle | null;
+    let DayDuration = BigInt.fromI32(86400);
+    let twoMinute = BigInt.fromI32(86100);
+    // 如果当前时间是当日的最后5分钟内: 86400 - 86100 = 300
+    if (block.timestamp.mod(DayDuration).gt(twoMinute)) {
+        bundle = Bundle.load("1");
+        // 之前已经在5分钟内更新过了, 就不用再更新了
+        if (bundle != null && bundle.timestamp.mod(DayDuration).gt(twoMinute)) return;
+    } else {
         //old data 60*60s处理一次  12h=2880block
-        if (block.number.lt(BigInt.fromI32(START_PROCESS_BLOCK)) && block.number.mod(BigInt.fromI32(60 * 4))
+        if (block.number.lt(BigInt.fromI32(START_PROCESS_BLOCK)) && block.number.mod(BigInt.fromI32(60 * 5))
             .notEqual(ZERO_BI)) return;
-
-        //For performance, every 4*4 blocks are processed for about 4*60s
-        if (block.number.mod(BigInt.fromI32(4 * 4)).notEqual(ZERO_BI)) return;
+        //For performance, every 5*5 blocks are processed for about 5*60s
+        if (block.number.mod(BigInt.fromI32(5 * 5)).notEqual(ZERO_BI)) return;
     }
 
     let fundSummary = FundSummary.load("1");
@@ -583,8 +589,9 @@ export function handleBlock(block: ethereum.Block): void {
         totalAssetsUSD = totalAssetsUSD.plus(fundEntity.totalAssetsUSD);
         fundEntity.save();
     }
-    let bundle = (Bundle.load("1") || new Bundle("1")) as Bundle;
+    bundle = (bundle || new Bundle("1")) as Bundle;
     bundle.ethPriceUSD = getTokenPriceUSD(Token.load(WETH_ADDRESS));
+    bundle.timestamp = block.timestamp;
     bundle.save();
     fundSummary.totalAssetsUSD = totalAssetsUSD;
     fundSummary.save();
