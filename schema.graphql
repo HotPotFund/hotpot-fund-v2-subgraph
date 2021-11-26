@@ -2,6 +2,7 @@ type Bundle @entity {
     id: ID!
 
     ethPriceUSD: BigDecimal!
+    timestamp: BigInt!
 }
 
 type Token @entity {
