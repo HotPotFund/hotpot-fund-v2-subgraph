@@ -62,12 +62,16 @@ import {updateFundDayData} from "./dayUpdates";
  * @param fundEntity
  * @param fundTokenEntity
  * @param fund
+ * @param fundTokenPriceUSD
+ * @param isCheckEmptyPosition
  */
 export function updateFundPools(fundEntity: Fund,
                                 fundTokenEntity: Token,
-                                fund: FundContract): BigDecimal {
+                                fund: FundContract,
+                                fundTokenPriceUSD: BigDecimal | null = null,
+                                isCheckEmptyPosition: boolean = true): BigDecimal {
     let deltaFees = ZERO_BD;
-    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
+    if (fundTokenPriceUSD === null) fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
     for (let poolIndex = 0; poolIndex < fundEntity.poolsLength.toI32(); poolIndex++) {
         let pool = Pool.load(fundEntity.id + "-" + poolIndex.toString()) as Pool;
         let uniV3Pool = UniV3Pool.bind(Address.fromString(pool.address.toHex()));
@@ -97,6 +101,7 @@ export function updateFundPools(fundEntity: Fund,
 
         for (let positionIndex = 0; positionIndex < pool.positionsLength.toI32(); positionIndex++) {
             let position = Position.load(fundEntity.id + "-" + poolIndex.toString() + "-" + positionIndex.toString()) as Position;
+            if (position.isEmpty && !isCheckEmptyPosition) continue;
             let positionOfUniV3 = uniV3Pool.positions(position.positionKey);
             let liquidity = positionOfUniV3.value0;
             // 如果当前头寸和历史状态都为空，就直接返回
@@ -134,12 +139,16 @@ export function updateFundPools(fundEntity: Fund,
 export function syncFundStatusData(fundEntity: Fund,
                                    fundTokenEntity: Token,
                                    fund: FundContract,
-                                   fundTokenPriceUSD: BigDecimal | null = null): void {
+                                   fundTokenPriceUSD: BigDecimal | null = null,
+                                   isSyncFT: boolean = true): BigDecimal {
     // 基金本币余额
-    fundEntity.balance = convertTokenToDecimal(ERC20.bind(Address.fromString(fundEntity.fundToken)).balanceOf(fund._address), fundTokenEntity.decimals);
-    fundEntity.totalAssets = convertTokenToDecimal(fund.totalAssets(), fundTokenEntity.decimals);
+    if (isSyncFT) {
+        fundEntity.balance = convertTokenToDecimal(ERC20.bind(Address.fromString(fundEntity.fundToken)).balanceOf(fund._address), fundTokenEntity.decimals);
+        fundEntity.totalAssets = convertTokenToDecimal(fund.totalAssets(), fundTokenEntity.decimals);
+    }
     if (fundTokenPriceUSD === null) fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
     fundEntity.totalAssetsUSD = fundTokenPriceUSD.times(fundEntity.totalAssets);
+    return fundTokenPriceUSD;
 }
 
 export function syncTxStatusData(txEntity: Transaction, call: ethereum.Call): void {
@@ -338,11 +347,12 @@ function updateFees(block: ethereum.Block,
                     fund: FundContract,
                     fundTokenPriceUSD: BigDecimal | null = null,
                     isSaveSummary: boolean = true,
-                    fundSummary: FundSummary | null = null): void {
-    syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
+                    fundSummary: FundSummary | null = null,
+                    isSyncAll: boolean = true): void {
+    fundTokenPriceUSD = syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD, isSyncAll);
     let manager = Manager.load(fundEntity.manager) as Manager;
 
-    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund);
+    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD, isSyncAll);
     let totalShare = convertTokenToDecimal(fundEntity.totalSupply, fundEntity.decimals);
     let sharePrice = totalShare.gt(ZERO_BD) ? deltaFees.div(totalShare) : ZERO_BD;
 
@@ -550,7 +560,6 @@ export function handleMove(call: MoveCall): void {
         .assetAmount.minus(convertTokenToDecimal(fund.assetsOfPosition(movesTx.poolIndex, movesTx.subIndex), fundTokenEntity.decimals));
     if (movesTx.amount.lt(ZERO_BD)) movesTx.amount = ZERO_BD.minus(movesTx.amount);
     movesTx.amountUSD = fundTokenPriceUSD.times(movesTx.amount);
-
     updateFees(call.block, fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
 
     movesTx.save();
@@ -561,12 +570,12 @@ export function handleMove(call: MoveCall): void {
 export function handleBlock(block: ethereum.Block): void {
     let bundle: Bundle | null;
     let DayDuration = BigInt.fromI32(86400);
-    let twoMinute = BigInt.fromI32(86100);
+    let fiveMinute = BigInt.fromI32(86100);// 剩余5分钟的时间点
     // 如果当前时间是当日的最后5分钟内: 86400 - 86100 = 300
-    if (block.timestamp.mod(DayDuration).gt(twoMinute)) {
+    if (block.timestamp.mod(DayDuration).gt(fiveMinute)) {
         bundle = Bundle.load("1");
         // 之前已经在5分钟内更新过了, 就不用再更新了
-        if (bundle != null && bundle.timestamp.mod(DayDuration).gt(twoMinute)) return;
+        if (bundle != null && bundle.timestamp.mod(DayDuration).gt(fiveMinute)) return;
     } else {
         //old data 60*60s处理一次  12h=2880block
         if (block.number.lt(BigInt.fromI32(START_PROCESS_BLOCK)) && block.number.mod(BigInt.fromI32(60 * 5))
@@ -585,7 +594,7 @@ export function handleBlock(block: ethereum.Block): void {
         let fundEntity = Fund.load(funds[i]) as Fund;
         let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
         let fund = FundContract.bind(Address.fromString(funds[i]));
-        updateFees(block, fundEntity, fundTokenEntity, fund, null, false, fundSummary);
+        updateFees(block, fundEntity, fundTokenEntity, fund, null, false, fundSummary, false);
         totalAssetsUSD = totalAssetsUSD.plus(fundEntity.totalAssetsUSD);
         fundEntity.save();
     }
