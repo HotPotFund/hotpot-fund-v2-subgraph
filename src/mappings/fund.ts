@@ -41,7 +41,8 @@ export function handleTransfer(event: Transfer): void {
     let fundTokenEntity = Token.load(fundEntity.fundToken) as Token;
     let fund = FundContract.bind(event.address);
 
-    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund);
+    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
+    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     let totalShare = convertTokenToDecimal(fundEntity.totalSupply, fundEntity.decimals);
     let sharePrice = totalShare.gt(ZERO_BD) ? deltaFees.div(totalShare) : ZERO_BD;
     let lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(sharePrice);
@@ -156,16 +157,17 @@ export function handleDeposit(event: DepositEvent): void {
     transaction.fund = event.address.toHex();
     syncTxStatusDataWithEvent(transaction, event);
 
+    let fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
     let depositTx = (DepositTx.load(id) || new DepositTx(id)) as DepositTx;
     depositTx.transaction = txId;
     depositTx.fund = event.address.toHexString();
     depositTx.owner = event.params.owner;
     depositTx.amount = convertTokenToDecimal(event.params.amount, fundTokenEntity.decimals);
-    depositTx.amountUSD = depositTx.amount.times(getTokenPriceUSD(fundTokenEntity));
+    depositTx.amountUSD = depositTx.amount.times(fundTokenPriceUSD);
     depositTx.share = event.params.share;
     depositTx.investor = event.address.toHexString() + "-" + event.params.owner.toHexString();
 
-    syncFundStatusData(fundEntity, fundTokenEntity, fund);
+    syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     fundEntity.totalSupply = fund.totalSupply();
     fundEntity.totalInvestment = convertTokenToDecimal(fund.totalInvestment(), fundTokenEntity.decimals);
     fundEntity.totalInvestmentUSD = fundEntity.totalInvestmentUSD.plus(depositTx.amountUSD);
@@ -173,7 +175,7 @@ export function handleDeposit(event: DepositEvent): void {
     fundEntity.totalDepositedAmountUSD = fundEntity.totalDepositedAmountUSD.plus(depositTx.amountUSD);
     // fundEntity.totalWithdrewAmount = fundEntity.totalWithdrewAmount;
 
-    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund);
+    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     let totalShare = convertTokenToDecimal(fundEntity.totalSupply.minus(event.params.share), fundEntity.decimals);
     let sharePrice = totalShare.gt(ZERO_BD) ? deltaFees.div(totalShare) : ZERO_BD;
     let lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(sharePrice);
@@ -246,13 +248,13 @@ export function handleWithdraw(event: WithdrawEvent): void {
     withdrawTx.share = event.params.share;
     withdrawTx.investor = event.address.toHexString() + "-" + event.params.owner.toHexString();
 
-    syncFundStatusData(fundEntity, fundTokenEntity, fund);
+    syncFundStatusData(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     fundEntity.totalSupply = fund.totalSupply();
     fundEntity.totalInvestment = convertTokenToDecimal(fund.totalInvestment(), fundTokenEntity.decimals);
     // fundEntity.totalDepositedAmount = fundEntity.totalDepositedAmount;
     fundEntity.totalWithdrewAmount = fundEntity.totalWithdrewAmount.plus(withdrawTx.amount);
 
-    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund);
+    let deltaFees = updateFundPools(fundEntity, fundTokenEntity, fund, fundTokenPriceUSD);
     let totalShare = convertTokenToDecimal(fundEntity.totalSupply.plus(event.params.share), fundEntity.decimals);
     let deltaPerSharePrice = totalShare.gt(ZERO_BD) ? deltaFees.div(totalShare) : ZERO_BD;
     let lastedSettlementPrice = fundEntity.lastedSettlementPrice.plus(deltaPerSharePrice);
