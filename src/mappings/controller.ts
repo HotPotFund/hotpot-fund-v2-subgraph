@@ -142,10 +142,8 @@ export function syncFundStatusData(fundEntity: Fund,
                                    fundTokenPriceUSD: BigDecimal | null = null,
                                    isSyncFT: boolean = true): BigDecimal {
     // 基金本币余额
-    if (isSyncFT) {
-        fundEntity.balance = convertTokenToDecimal(ERC20.bind(Address.fromString(fundEntity.fundToken)).balanceOf(fund._address), fundTokenEntity.decimals);
-        fundEntity.totalAssets = convertTokenToDecimal(fund.totalAssets(), fundTokenEntity.decimals);
-    }
+    if (isSyncFT) fundEntity.balance = convertTokenToDecimal(ERC20.bind(Address.fromString(fundEntity.fundToken)).balanceOf(fund._address), fundTokenEntity.decimals);
+    fundEntity.totalAssets = convertTokenToDecimal(fund.totalAssets(), fundTokenEntity.decimals);
     if (fundTokenPriceUSD === null) fundTokenPriceUSD = getTokenPriceUSD(fundTokenEntity);
     fundEntity.totalAssetsUSD = fundTokenPriceUSD.times(fundEntity.totalAssets);
     return fundTokenPriceUSD;
