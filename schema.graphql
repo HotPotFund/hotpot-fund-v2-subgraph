@@ -57,6 +57,10 @@ type Fund @entity {
     fundToken: Token!
     # 基金余额
     balance: BigDecimal!
+    # 锁定期
+    lockPeriod: BigInt!
+    baseLine: BigDecimal!
+    managerFee: BigDecimal!
 
     # 投入的交易对池子列表
     pools: [Pool!] @derivedFrom(field: "fund")
@@ -165,6 +169,8 @@ type Investor @entity {
     stakingShare: BigInt!
     # 当前本金
     totalInvestment: BigDecimal!
+    # 最新存入时间
+    lastDepositTime: BigInt!
 
     # 累计投入值
     totalDepositedAmount: BigDecimal!

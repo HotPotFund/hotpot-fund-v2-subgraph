@@ -119,6 +119,7 @@ export function createInvestorEntity(fundAddr: Address, userAddr: Address, event
         investor.totalDepositedAmountUSD = ZERO_BD;
         investor.totalWithdrewAmount = ZERO_BD;
         investor.totalWithdrewAmountUSD = ZERO_BD;
+        investor.lastDepositTime = ZERO_BI;
 
         investor.lastedSettlementPrice = ZERO_BD;
         investor.totalFees = ZERO_BD;
@@ -195,6 +196,7 @@ export function handleDeposit(event: DepositEvent): void {
     investor.totalDepositedAmount = investor.totalDepositedAmount.plus(depositTx.amount);
     investor.totalDepositedAmountUSD = investor.totalDepositedAmountUSD.plus(depositTx.amountUSD);
     // investor.totalWithdrewAmount = investor.totalWithdrewAmount;
+    investor.lastDepositTime = event.block.timestamp;
 
     fundEntity.totalFees = fundEntity.totalFees.plus(deltaFees);
     fundEntity.lastedSettlementPrice = lastedSettlementPrice;

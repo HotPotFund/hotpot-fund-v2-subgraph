@@ -1,10 +1,18 @@
 import {FundCreated} from "../../generated/Factory/Factory";
 import {Fund as FundContract} from "../../generated/Factory/Fund";
 
-import {Address} from "@graphprotocol/graph-ts/index";
+import { Address, BigDecimal, BigInt } from "@graphprotocol/graph-ts/index";
 import {Fund, FundSummary, Manager} from "../../generated/schema";
 import {Fund as FundTemplate} from "../../generated/templates";
-import {fetchTokenDecimals, fetchTokenName, fetchTokenSymbol, ONE_BI, WETH_ADDRESS, ZERO_BD, ZERO_BI} from "../helpers";
+import {
+    fetchTokenDecimals,
+    fetchTokenName,
+    fetchTokenSymbol,
+    ONE_BI,
+    WETH_ADDRESS,
+    ZERO_BD,
+    ZERO_BI
+} from "../helpers";
 
 
 function getFundTokenAddr(contract: FundContract): Address {
@@ -25,6 +33,9 @@ export function handleFundCreated(event: FundCreated): void {
     fundEntity.symbol = fetchTokenSymbol(address);
     fundEntity.name = fetchTokenName(address);
     fundEntity.decimals = fetchTokenDecimals(address);
+    fundEntity.lockPeriod = fundContract.lockPeriod();
+    fundEntity.baseLine = fundContract.baseLine().toBigDecimal().div(BigInt.fromI32(100).leftShift(128).toBigDecimal());
+    fundEntity.managerFee = fundContract.managerFee().toBigDecimal().div(BigInt.fromI32(100).leftShift(128).toBigDecimal());
 
     let manager = Manager.load(event.params.manager.toHex());
     if (manager === null) {

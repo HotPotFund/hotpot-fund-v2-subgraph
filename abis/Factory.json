@@ -87,6 +87,21 @@
         "internalType": "bytes32",
         "name": "descriptor",
         "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lockPeriod",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "baseLine",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "managerFee",
+        "type": "uint256"
       }
     ],
     "name": "createFund",
@@ -162,6 +177,21 @@
         "internalType": "bytes32",
         "name": "descriptor",
         "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lockPeriod",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "baseLine",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "managerFee",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
