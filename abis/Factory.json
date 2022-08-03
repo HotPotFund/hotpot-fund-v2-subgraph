@@ -84,9 +84,9 @@
         "type": "address"
       },
       {
-        "internalType": "bytes32",
+        "internalType": "bytes",
         "name": "descriptor",
-        "type": "bytes32"
+        "type": "bytes"
       },
       {
         "internalType": "uint256",
@@ -174,9 +174,9 @@
         "type": "address"
       },
       {
-        "internalType": "bytes32",
+        "internalType": "bytes",
         "name": "descriptor",
-        "type": "bytes32"
+        "type": "bytes"
       },
       {
         "internalType": "uint256",
